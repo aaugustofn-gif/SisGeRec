@@ -39,6 +39,9 @@ def migrar_esquema():
             db.execute(text(
                 "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT NULL"
             ))
+            db.execute(text(
+                "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS setor VARCHAR(20) NULL"
+            ))
             db.commit()
             # Preenche o valor unitário congelado para autorizações criadas antes desse campo existir
             db.execute(text(
@@ -54,6 +57,7 @@ def migrar_esquema():
                 "ALTER TABLE autorizacoes ADD COLUMN data_cancelamento DATETIME NULL",
                 "ALTER TABLE autorizacoes ADD COLUMN cancelado_por_nip VARCHAR(20) NULL",
                 "ALTER TABLE autorizacoes ADD COLUMN motivo_cancelamento TEXT NULL",
+                "ALTER TABLE status_config ADD COLUMN setor VARCHAR(20) NULL",
             ]:
                 try:
                     db.execute(text(comando))

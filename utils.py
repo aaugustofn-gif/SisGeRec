@@ -65,6 +65,38 @@ def eh_status_final(db: Session, tipo_processo: str, status_atual: str) -> bool:
     return bool(lista) and status_atual == lista[-1]
 
 
+def construir_linha_tempo(db: Session, linha):
+    """Monta a lista de TODOS os passos do tipo de processo da linha (incluindo o estado inicial
+    'AUTORIZADA'), marcando qual é o atual e a data em que cada passo já concluído foi alcançado."""
+    configs = (
+        db.query(models.StatusConfig)
+        .filter(models.StatusConfig.tipo_processo == linha.tipo_processo)
+        .order_by(models.StatusConfig.ordem)
+        .all()
+    )
+    passos = [{"nome": models.STATUS_INICIAL, "setor": None}]
+    passos += [{"nome": c.nome_status, "setor": c.setor} for c in configs]
+
+    datas = {}
+    for h in linha.historico:
+        if h.status not in datas:
+            datas[h.status] = h.data
+
+    nomes = [p["nome"] for p in passos]
+    idx_atual = nomes.index(linha.status_atual) if linha.status_atual in nomes else 0
+
+    resultado = []
+    for i, p in enumerate(passos):
+        resultado.append({
+            "nome": p["nome"],
+            "setor": p["setor"],
+            "atual": i == idx_atual,
+            "concluido": i < idx_atual,
+            "data": datas.get(p["nome"]),
+        })
+    return resultado
+
+
 def gerar_xlsx(headers, linhas, nome_aba="Planilha"):
     """Gera um arquivo .xlsx em memória a partir de cabeçalhos e linhas de dados."""
     wb = Workbook()

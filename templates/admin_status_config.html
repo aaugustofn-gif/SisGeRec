@@ -3,7 +3,8 @@
 {% block content %}
 <h1>Configuração de Listas de Status por Tipo de Processo</h1>
 <p style="color:var(--text-dim);">Defina, para cada tipo de processo, a sequência de status que uma
-parcela autorizada deve percorrer. A ordem de cadastro é a ordem do fluxo.</p>
+parcela autorizada deve percorrer, e o setor responsável por executar cada passo. A ordem de
+cadastro é a ordem do fluxo.</p>
 
 <div class="dashboard-cards" style="align-items:flex-start;">
   {% for tipo in tipo_processo_choices %}
@@ -13,14 +14,19 @@ parcela autorizada deve percorrer. A ordem de cadastro é a ordem do fluxo.</p>
       {% for item in listas[tipo] %}
       <li style="margin-bottom:6px;">
         {{ item.nome_status }}
+        {% if item.setor %}<span class="badge" style="margin-left:4px;">{{ item.setor }}</span>{% endif %}
         <form class="inline" method="post" action="/status/config/{{ item.id }}/remover" onsubmit="return confirm('Remover este status?');">
           <button class="btn btn-sm btn-danger" type="submit" style="margin-left:6px;">x</button>
         </form>
       </li>
       {% endfor %}
     </ol>
-    <form method="post" action="/status/config/{{ tipo }}/adicionar" style="display:flex; gap:6px;">
-      <input type="text" name="nome_status" placeholder="Novo status..." required>
+    <form method="post" action="/status/config/{{ tipo }}/adicionar" style="display:flex; gap:6px; flex-wrap:wrap;">
+      <input type="text" name="nome_status" placeholder="Novo status..." required style="flex:1; min-width:120px;">
+      <select name="setor" style="min-width:100px;">
+        <option value="">Setor (opcional)</option>
+        {% for s in setor_choices %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      </select>
       <button class="btn btn-sm btn-gold" type="submit">+</button>
     </form>
   </div>

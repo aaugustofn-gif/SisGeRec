@@ -192,6 +192,24 @@ form.inline { display: inline; }
 }
 .status-hist { font-size: 0.78em; color: var(--text-dim); margin-top: 4px; }
 
+.stepper { display: flex; flex-wrap: wrap; gap: 0; margin: 12px 0; }
+.passo {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px;
+  border-left: 3px solid var(--border);
+  min-width: 130px;
+  flex: 1;
+}
+.passo-concluido { border-left-color: var(--ok); }
+.passo-concluido .passo-nome { color: var(--ok); }
+.passo-atual { border-left-color: var(--gold); background: rgba(201, 163, 78, 0.10); }
+.passo-atual .passo-nome { color: var(--gold); font-weight: 700; }
+.passo-pendente .passo-nome { color: var(--text-dim); }
+.passo-nome { font-size: 0.9em; }
+.passo-setor { font-size: 0.75em; color: var(--text-dim); margin-top: 2px; }
+.passo-data { font-size: 0.75em; color: var(--text-dim); margin-top: 2px; }
+
 .login-wrap {
   display: flex;
   align-items: center;

@@ -68,11 +68,10 @@
     </div>
   </div>
 
-  <div class="status-linha">
-    <span class="badge {% if cancelada %}badge-warn{% else %}badge-ok{% endif %}">{{ l.status_atual }}</span>
-
-    {% if not cancelada %}
-      {% if not l.tipo_processo and usuario.perfil in ("ADMIN", "SUPERADMIN") %}
+  {% if not l.tipo_processo and not cancelada %}
+    <div class="status-linha">
+      <span class="badge badge-ok">{{ l.status_atual }}</span>
+      {% if usuario.perfil in ("ADMIN", "SUPERADMIN") %}
         <form class="inline" method="post" action="/status/{{ l.id }}/definir-tipo">
           <select name="tipo_processo" required>
             <option value="">Definir tipo de processo...</option>
@@ -81,13 +80,32 @@
           <button class="btn btn-sm" type="submit">Definir</button>
         </form>
       {% endif %}
-
-      {% if l.tipo_processo and (usuario.nip == demanda.militar_responsavel_nip or usuario.perfil in ("ADMIN", "SUPERADMIN")) %}
+    </div>
+  {% elif cancelada %}
+    <div class="status-linha">
+      <span class="badge badge-warn">{{ l.status_atual }}</span>
+      <span style="color:var(--text-dim); font-size:0.85em;">
+        Cancelado em {{ l.autorizacao.data_cancelamento.strftime("%d/%m/%Y") }}
+        por {{ l.autorizacao.cancelado_por.nome_completo() }}
+        {% if l.autorizacao.motivo_cancelamento %} — motivo: {{ l.autorizacao.motivo_cancelamento }}{% endif %}
+      </span>
+    </div>
+  {% else %}
+    <div class="stepper">
+      {% for passo in linhas_tempo[l.id] %}
+      <div class="passo {% if passo.atual %}passo-atual{% elif passo.concluido %}passo-concluido{% else %}passo-pendente{% endif %}">
+        <span class="passo-nome">{% if passo.concluido %}✓ {% endif %}{{ passo.nome }}</span>
+        {% if passo.setor %}<span class="passo-setor">{{ passo.setor }}</span>{% endif %}
+        {% if passo.data %}<span class="passo-data">{{ passo.data.strftime("%d/%m/%Y") }}</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="status-linha">
+      {% if usuario.nip == demanda.militar_responsavel_nip or usuario.perfil in ("ADMIN", "SUPERADMIN") %}
         <form class="inline" method="post" action="/status/{{ l.id }}/avancar">
           <button class="btn btn-sm">Avançar status</button>
         </form>
       {% endif %}
-
       {% if usuario.perfil in ("ADMIN", "SUPERADMIN") %}
         <form class="inline" method="post" action="/status/{{ l.id }}/cancelar"
               onsubmit="return confirm('Cancelar este processo? O saldo será liberado de volta para Recursos e a demanda voltará a ficar pendente de autorização. Essa ação não pode ser desfeita.');">
@@ -95,22 +113,7 @@
           <button class="btn btn-sm btn-danger" type="submit">Cancelar processo</button>
         </form>
       {% endif %}
-    {% else %}
-      <span style="color:var(--text-dim); font-size:0.85em;">
-        Cancelado em {{ l.autorizacao.data_cancelamento.strftime("%d/%m/%Y") }}
-        por {{ l.autorizacao.cancelado_por.nome_completo() }}
-        {% if l.autorizacao.motivo_cancelamento %} — motivo: {{ l.autorizacao.motivo_cancelamento }}{% endif %}
-      </span>
-    {% endif %}
-  </div>
-
-  {% if l.historico %}
-  <div class="status-hist">
-    Histórico:
-    {% for h in l.historico %}
-      {{ h.status }} ({{ h.data.strftime("%d/%m/%Y") }}{% if not loop.last %}) →{% else %}){% endif %}
-    {% endfor %}
-  </div>
+    </div>
   {% endif %}
 </div>
 {% endfor %}

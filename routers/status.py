@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import datetime as dt
 from database import get_db
 from auth import exigir_login, exigir_perfil
-from utils import proximo_status, eh_status_final, int_ou_none
+from utils import proximo_status, eh_status_final, int_ou_none, construir_linha_tempo
 import models
 from webtemplates import templates
 
@@ -41,6 +41,11 @@ def painel_status(request: Request, status_filtro: str = None, tipo_processo: st
     linhas = [l for l in linhas if combina(l)]
     linhas = _ordenar(linhas)
 
+    linhas_tempo = {
+        l.id: construir_linha_tempo(db, l)
+        for l in linhas if l.tipo_processo and not l.autorizacao.cancelada
+    }
+
     origens = db.query(models.Origem).order_by(models.Origem.nome).all()
 
     return templates.TemplateResponse("status.html", {
@@ -48,6 +53,7 @@ def painel_status(request: Request, status_filtro: str = None, tipo_processo: st
         "nd_choices": models.ND_CHOICES, "setor_choices": models.SETOR_CHOICES,
         "tipo_processo_choices": models.TIPO_PROCESSO_CHOICES,
         "tipo_processo_labels": models.TIPO_PROCESSO_LABELS,
+        "linhas_tempo": linhas_tempo,
         "filtros": {"status": status_filtro, "tipo_processo": tipo_processo, "nd": nd,
                     "origem_id": origem_id, "setor": setor},
     })
@@ -133,11 +139,12 @@ def config_status(request: Request, usuario=Depends(exigir_perfil("ADMIN")), db:
         "request": request, "usuario": usuario, "listas": listas,
         "tipo_processo_choices": models.TIPO_PROCESSO_CHOICES,
         "tipo_processo_labels": models.TIPO_PROCESSO_LABELS,
+        "setor_choices": models.SETOR_CHOICES,
     })
 
 
 @router.post("/status/config/{tipo_processo}/adicionar")
-def adicionar_status_config(tipo_processo: str, nome_status: str = Form(...),
+def adicionar_status_config(tipo_processo: str, nome_status: str = Form(...), setor: str = Form(""),
                              usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
     maior_ordem = (
         db.query(models.StatusConfig)
@@ -146,7 +153,7 @@ def adicionar_status_config(tipo_processo: str, nome_status: str = Form(...),
     )
     if nome_status.strip():
         db.add(models.StatusConfig(tipo_processo=tipo_processo, ordem=maior_ordem + 1,
-                                    nome_status=nome_status.strip()))
+                                    nome_status=nome_status.strip(), setor=setor or None))
         db.commit()
     return RedirectResponse("/status/config", status_code=303)
 

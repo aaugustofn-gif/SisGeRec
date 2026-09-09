@@ -156,3 +156,4 @@ class StatusConfig(Base):
     tipo_processo = Column(String(20), nullable=False)
     ordem = Column(Integer, nullable=False)
     nome_status = Column(String(80), nullable=False)
+    setor = Column(String(20), nullable=True)  # setor responsável por executar este passo
