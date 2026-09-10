@@ -23,10 +23,7 @@ cadastro é a ordem do fluxo.</p>
     </ol>
     <form method="post" action="/status/config/{{ tipo }}/adicionar" style="display:flex; gap:6px; flex-wrap:wrap;">
       <input type="text" name="nome_status" placeholder="Novo status..." required style="flex:1; min-width:120px;">
-      <select name="setor" style="min-width:100px;">
-        <option value="">Setor (opcional)</option>
-        {% for s in setor_choices %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
-      </select>
+      <input type="text" name="setor" placeholder="Setor/responsável (opcional)" style="flex:1; min-width:140px;">
       <button class="btn btn-sm btn-gold" type="submit">+</button>
     </form>
   </div>

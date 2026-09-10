@@ -8,6 +8,10 @@
 (informe ao militar; ele deve trocá-la no primeiro acesso, se o processo da sua OM assim exigir).</div>
 {% endif %}
 
+{% if erro_exclusao %}
+<div class="erro">{{ erro_exclusao }}</div>
+{% endif %}
+
 <div class="panel">
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <h2 style="margin:0;">Usuários cadastrados</h2>
@@ -24,6 +28,9 @@
         <td>{{ u.perfil }}</td>
         <td>{% if u.ativo %}<span class="badge badge-ok">Ativo</span>{% else %}<span class="badge badge-warn">Bloqueado</span>{% endif %}</td>
         <td>
+          {% if usuario.perfil == "SUPERADMIN" or u.perfil not in ("SUPERADMIN", "ADMIN") %}
+          <a class="btn btn-sm" href="/admin/usuarios/{{ u.nip }}/editar">Editar</a>
+          {% endif %}
           <form class="inline" method="post" action="/admin/usuarios/{{ u.nip }}/resetar-senha">
             <button class="btn btn-sm" type="submit">Resetar senha</button>
           </form>
@@ -31,7 +38,7 @@
             <button class="btn btn-sm" type="submit">{% if u.ativo %}Bloquear{% else %}Desbloquear{% endif %}</button>
           </form>
           {% if usuario.perfil == "SUPERADMIN" and u.nip != usuario.nip %}
-          <form class="inline" method="post" action="/admin/usuarios/{{ u.nip }}/excluir" onsubmit="return confirm('Excluir este usuário?');">
+          <form class="inline" method="post" action="/admin/usuarios/{{ u.nip }}/excluir" onsubmit="return confirm('Excluir este usuário? Só funciona se ele não tiver nenhum registro vinculado no sistema.');">
             <button class="btn btn-sm btn-danger" type="submit">Excluir</button>
           </form>
           {% endif %}

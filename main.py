@@ -42,6 +42,9 @@ def migrar_esquema():
             db.execute(text(
                 "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS setor VARCHAR(20) NULL"
             ))
+            db.execute(text(
+                "ALTER TABLE status_config MODIFY COLUMN setor VARCHAR(100) NULL"
+            ))
             db.commit()
             # Preenche o valor unitário congelado para autorizações criadas antes desse campo existir
             db.execute(text(

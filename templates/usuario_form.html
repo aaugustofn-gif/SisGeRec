@@ -1,29 +1,37 @@
 {% extends "base.html" %}
-{% block title %}Novo Usuário{% endblock %}
+{% block title %}{% if editando %}Editar{% else %}Novo{% endif %} Usuário{% endblock %}
 {% block content %}
-<h1>Novo Usuário</h1>
+<h1>{% if editando %}Editar Usuário{% else %}Novo Usuário{% endif %}</h1>
 <div class="panel" style="max-width:480px;">
   {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
   {% if senha_gerada %}
     <div class="sucesso">Usuário {{ nip_criado }} criado. Senha provisória: <strong>{{ senha_gerada }}</strong></div>
   {% endif %}
-  <form method="post" action="/admin/usuarios/novo">
+  <form method="post" action="{% if editando %}/admin/usuarios/{{ editando.nip }}/editar{% else %}/admin/usuarios/novo{% endif %}">
     <label>NIP</label>
-    <input type="text" name="nip" required>
+    {% if editando %}
+      <input type="text" value="{{ editando.nip }}" disabled>
+    {% else %}
+      <input type="text" name="nip" required>
+    {% endif %}
     <label>Posto/Graduação</label>
-    <input type="text" name="posto" required placeholder="Ex: 1T, CC, SO...">
+    <input type="text" name="posto" value="{{ editando.posto if editando else '' }}" required placeholder="Ex: 1T, CC, SO...">
     <label>Nome</label>
-    <input type="text" name="nome" required>
+    <input type="text" name="nome" value="{{ editando.nome if editando else '' }}" required>
     <label>Setor</label>
     <select name="setor" required>
-      {% for s in setor_choices %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+      {% for s in setor_choices %}
+        <option value="{{ s }}" {% if editando and editando.setor==s %}selected{% endif %}>{{ s }}</option>
+      {% endfor %}
     </select>
     <label>Perfil</label>
     <select name="perfil" required>
-      {% for p in perfil_choices %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+      {% for p in perfil_choices %}
+        <option value="{{ p }}" {% if editando and editando.perfil==p %}selected{% endif %}>{{ p }}</option>
+      {% endfor %}
     </select>
     <div style="margin-top:16px;">
-      <button class="btn btn-gold" type="submit">Cadastrar</button>
+      <button class="btn btn-gold" type="submit">{% if editando %}Salvar alterações{% else %}Cadastrar{% endif %}</button>
       <a class="btn" href="/admin/usuarios">Voltar</a>
     </div>
   </form>
