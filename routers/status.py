@@ -158,6 +158,43 @@ def adicionar_status_config(tipo_processo: str, nome_status: str = Form(...), se
     return RedirectResponse("/status/config", status_code=303)
 
 
+@router.post("/status/config/{item_id}/editar")
+def editar_status_config(item_id: int, nome_status: str = Form(...), setor: str = Form(""),
+                          usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
+    item = db.get(models.StatusConfig, item_id)
+    if not item or not nome_status.strip():
+        return RedirectResponse("/status/config", status_code=303)
+
+    nome_antigo = item.nome_status
+    item.nome_status = nome_status.strip()
+    item.setor = setor or None
+
+    # Se o nome do passo mudou, atualiza também as linhas de status que estão atualmente
+    # paradas nesse passo (e seu histórico), para não perder o rastro de quem já está lá.
+    if nome_antigo != item.nome_status:
+        linhas_no_passo = (
+            db.query(models.LinhaStatus)
+            .filter(models.LinhaStatus.tipo_processo == item.tipo_processo,
+                    models.LinhaStatus.status_atual == nome_antigo)
+            .all()
+        )
+        for linha in linhas_no_passo:
+            linha.status_atual = item.nome_status
+
+        historicos_no_passo = (
+            db.query(models.StatusHistorico)
+            .join(models.LinhaStatus, models.StatusHistorico.linha_status_id == models.LinhaStatus.id)
+            .filter(models.LinhaStatus.tipo_processo == item.tipo_processo,
+                    models.StatusHistorico.status == nome_antigo)
+            .all()
+        )
+        for h in historicos_no_passo:
+            h.status = item.nome_status
+
+    db.commit()
+    return RedirectResponse("/status/config", status_code=303)
+
+
 @router.post("/status/config/{item_id}/remover")
 def remover_status_config(item_id: int, usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
     item = db.get(models.StatusConfig, item_id)

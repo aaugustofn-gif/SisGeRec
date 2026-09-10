@@ -12,11 +12,14 @@ cadastro é a ordem do fluxo.</p>
     <h3>{{ tipo_processo_labels[tipo] }}</h3>
     <ol>
       {% for item in listas[tipo] %}
-      <li style="margin-bottom:6px;">
-        {{ item.nome_status }}
-        {% if item.setor %}<span class="badge" style="margin-left:4px;">{{ item.setor }}</span>{% endif %}
+      <li style="margin-bottom:8px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <form method="post" action="/status/config/{{ item.id }}/editar" style="display:flex; gap:6px; flex:1; flex-wrap:wrap; margin:0;">
+          <input type="text" name="nome_status" value="{{ item.nome_status }}" required style="flex:1; min-width:110px;">
+          <input type="text" name="setor" value="{{ item.setor or '' }}" placeholder="Setor/responsável" style="flex:1; min-width:110px;">
+          <button class="btn btn-sm" type="submit">Salvar</button>
+        </form>
         <form class="inline" method="post" action="/status/config/{{ item.id }}/remover" onsubmit="return confirm('Remover este status?');">
-          <button class="btn btn-sm btn-danger" type="submit" style="margin-left:6px;">x</button>
+          <button class="btn btn-sm btn-danger" type="submit">x</button>
         </form>
       </li>
       {% endfor %}
