@@ -67,6 +67,7 @@ class Demanda(Base):
     setor = Column(String(20), nullable=False)
     observacoes = Column(Text, nullable=True)
     data_cadastro = Column(DateTime, default=dt.datetime.utcnow)
+    arquivada = Column(Boolean, default=False, nullable=False)
 
     origem_desejada = relationship("Origem")
     militar_responsavel = relationship("Usuario")

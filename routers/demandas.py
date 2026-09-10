@@ -13,6 +13,7 @@ router = APIRouter()
 
 @router.get("/demandas")
 def listar_demandas(request: Request, nd: str = None, origem_id: str = None, setor: str = None,
+                     mostrar_arquivadas: str = None,
                      usuario=Depends(exigir_login), db: Session = Depends(get_db)):
     origem_id = int_ou_none(origem_id)
     q = db.query(models.Demanda)
@@ -22,6 +23,8 @@ def listar_demandas(request: Request, nd: str = None, origem_id: str = None, set
         q = q.filter(models.Demanda.origem_desejada_id == origem_id)
     if setor:
         q = q.filter(models.Demanda.setor == setor)
+    if not mostrar_arquivadas:
+        q = q.filter(models.Demanda.arquivada == False)
     demandas = q.order_by(models.Demanda.data_cadastro.desc()).all()
     origens = db.query(models.Origem).filter(models.Origem.ativo == True).order_by(models.Origem.nome).all()
 
@@ -29,11 +32,13 @@ def listar_demandas(request: Request, nd: str = None, origem_id: str = None, set
         "request": request, "usuario": usuario, "demandas": demandas, "origens": origens,
         "nd_choices": models.ND_CHOICES, "setor_choices": models.SETOR_CHOICES,
         "filtro_nd": nd, "filtro_origem": origem_id, "filtro_setor": setor,
+        "mostrar_arquivadas": mostrar_arquivadas,
     })
 
 
 @router.get("/demandas/exportar")
 def exportar_demandas(nd: str = None, origem_id: str = None, setor: str = None,
+                       mostrar_arquivadas: str = None,
                        usuario=Depends(exigir_login), db: Session = Depends(get_db)):
     origem_id = int_ou_none(origem_id)
     q = db.query(models.Demanda)
@@ -43,6 +48,8 @@ def exportar_demandas(nd: str = None, origem_id: str = None, setor: str = None,
         q = q.filter(models.Demanda.origem_desejada_id == origem_id)
     if setor:
         q = q.filter(models.Demanda.setor == setor)
+    if not mostrar_arquivadas:
+        q = q.filter(models.Demanda.arquivada == False)
     demandas = q.order_by(models.Demanda.data_cadastro.desc()).all()
 
     headers = ["Data", "Descrição", "ND", "Qtd. solicitada", "Vlr Unit. (R$)", "Vlr Total (R$)",
@@ -153,17 +160,35 @@ def editar_demanda(demanda_id: int, request: Request, descricao: str = Form(...)
     if not bloqueado:
         demanda.nd = nd
 
+    # Propaga o novo valor unitário para as autorizações ATIVAS já ratificadas — assim o saldo em
+    # Recursos e o valor mostrado no painel de Status refletem o preço final da licitação/pesquisa.
+    # Autorizações CANCELADAS mantêm o valor histórico com que foram efetivamente processadas.
+    for a in demanda.autorizacoes_ativas():
+        a.valor_unitario = valor_dec
+
     db.commit()
     return RedirectResponse(f"/demandas/{demanda.id}", status_code=303)
 
 
 @router.post("/demandas/{demanda_id}/excluir")
 def excluir_demanda(demanda_id: int, usuario=Depends(exigir_login), db: Session = Depends(get_db)):
+    """'Excluir' aqui arquiva a demanda (some das listagens), em vez de apagar o registro do banco.
+    Excluir de fato quebraria o histórico de recursos/status já vinculados a ela. Pode ser
+    restaurada a qualquer momento em /demandas/{id}/restaurar."""
     demanda = db.get(models.Demanda, demanda_id)
-    if demanda and _pode_editar(usuario, demanda) and not demanda.autorizacoes_ativas():
-        db.delete(demanda)
+    if demanda and _pode_editar(usuario, demanda):
+        demanda.arquivada = True
         db.commit()
     return RedirectResponse("/demandas", status_code=303)
+
+
+@router.post("/demandas/{demanda_id}/restaurar")
+def restaurar_demanda(demanda_id: int, usuario=Depends(exigir_login), db: Session = Depends(get_db)):
+    demanda = db.get(models.Demanda, demanda_id)
+    if demanda and _pode_editar(usuario, demanda):
+        demanda.arquivada = False
+        db.commit()
+    return RedirectResponse(f"/demandas/{demanda_id}", status_code=303)
 
 
 @router.get("/demandas/{demanda_id}")

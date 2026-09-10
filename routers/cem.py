@@ -19,7 +19,7 @@ def tela_autorizacao(request: Request, nd: List[str] = Query(default=[]),
     nds_selecionadas = [n for n in nd if n in models.ND_CHOICES]
 
     demandas = db.query(models.Demanda).order_by(models.Demanda.data_cadastro.asc()).all()
-    demandas_pendentes = [d for d in demandas if d.quantidade_pendente() > 0]
+    demandas_pendentes = [d for d in demandas if d.quantidade_pendente() > 0 and not d.arquivada]
     if nds_selecionadas:
         demandas_pendentes = [d for d in demandas_pendentes if d.nd in nds_selecionadas]
 

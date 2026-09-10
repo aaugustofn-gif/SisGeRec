@@ -7,7 +7,7 @@
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <h2 style="margin:0;">Demandas cadastradas</h2>
     <div>
-      <a class="btn" href="/demandas/exportar?nd={{ filtro_nd or '' }}&origem_id={{ filtro_origem or '' }}&setor={{ filtro_setor or '' }}">⬇ Exportar planilha</a>
+      <a class="btn" href="/demandas/exportar?nd={{ filtro_nd or '' }}&origem_id={{ filtro_origem or '' }}&setor={{ filtro_setor or '' }}&mostrar_arquivadas={{ mostrar_arquivadas or '' }}">⬇ Exportar planilha</a>
       <a class="btn btn-gold" href="/demandas/nova">+ Nova Demanda</a>
     </div>
   </div>
@@ -34,6 +34,12 @@
         {% for s in setor_choices %}<option value="{{ s }}" {% if filtro_setor==s %}selected{% endif %}>{{ s }}</option>{% endfor %}
       </select>
     </div>
+    <div>
+      <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" name="mostrar_arquivadas" value="1" style="width:auto;" {% if mostrar_arquivadas %}checked{% endif %}>
+        Mostrar arquivadas
+      </label>
+    </div>
     <div><button class="btn" type="submit">Filtrar</button></div>
   </form>
 
@@ -46,9 +52,9 @@
     </thead>
     <tbody>
       {% for d in demandas %}
-      <tr>
+      <tr {% if d.arquivada %}style="opacity:0.55;"{% endif %}>
         <td>{{ d.data_cadastro.strftime("%d/%m/%Y") }}</td>
-        <td>{{ d.descricao }}</td>
+        <td>{{ d.descricao }}{% if d.arquivada %} <span class="badge badge-warn">Arquivada</span>{% endif %}</td>
         <td>{{ d.nd }}</td>
         <td>{{ d.quantidade }}</td>
         <td>R$ {{ "%.2f"|format(d.valor_unitario) }}</td>

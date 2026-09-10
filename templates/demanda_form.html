@@ -7,9 +7,10 @@
   {% if demanda and bloqueado %}
     <div class="erro">Esta demanda já tem autorização ativa do CEM: a ND não pode mais ser
     alterada (isso afetaria os saldos já debitados). O valor unitário continua editável — útil
-    para atualizar com o preço final obtido na licitação/pesquisa de mercado. Você também pode
-    ajustar a descrição, a quantidade (nunca abaixo do já autorizado), a origem desejada e as
-    observações.</div>
+    para atualizar com o preço final obtido na licitação/pesquisa de mercado. Ao salvar, o novo
+    valor é aplicado às autorizações ativas dessa demanda, ajustando automaticamente o saldo em
+    Recursos e o valor mostrado no painel de Status. Você também pode ajustar a descrição, a
+    quantidade (nunca abaixo do já autorizado), a origem desejada e as observações.</div>
   {% endif %}
   <form method="post" action="{% if demanda %}/demandas/{{ demanda.id }}/editar{% else %}/demandas/nova{% endif %}">
     <label>Descrição da despesa</label>
@@ -39,16 +40,19 @@
       <a class="btn" href="{% if demanda %}/demandas/{{ demanda.id }}{% else %}/demandas{% endif %}">Cancelar</a>
     </div>
   </form>
-  {% if demanda and not bloqueado %}
-  <form method="post" action="/demandas/{{ demanda.id }}/excluir" style="margin-top:10px;"
-        onsubmit="return confirm('Excluir esta demanda permanentemente? Essa ação não pode ser desfeita.');">
-    <button class="btn btn-danger" type="submit">Excluir demanda</button>
-  </form>
-  {% elif demanda and bloqueado %}
-  <p style="color:var(--text-dim); font-size:0.85em; margin-top:10px;">
-    Esta demanda já tem autorização ativa do CEM e por isso não pode mais ser excluída
-    (cancele a(s) autorização(ões) no painel de Status primeiro, se necessário).
-  </p>
+  {% if demanda %}
+    {% if demanda.arquivada %}
+    <div class="erro" style="margin-top:10px;">Esta demanda está arquivada — não aparece nas
+      listagens normais, mas todo o histórico continua preservado.</div>
+    <form method="post" action="/demandas/{{ demanda.id }}/restaurar" style="margin-top:6px;">
+      <button class="btn btn-gold" type="submit">Restaurar demanda</button>
+    </form>
+    {% else %}
+    <form method="post" action="/demandas/{{ demanda.id }}/excluir" style="margin-top:10px;"
+          onsubmit="return confirm('Arquivar esta demanda? Ela deixa de aparecer nas listagens, mas o histórico (recursos, autorizações, status) é preservado e você pode restaurá-la depois.');">
+      <button class="btn btn-danger" type="submit">Excluir (arquivar) demanda</button>
+    </form>
+    {% endif %}
   {% endif %}
 </div>
 {% endblock %}

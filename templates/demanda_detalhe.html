@@ -1,13 +1,20 @@
 {% extends "base.html" %}
 {% block title %}Demanda #{{ demanda.id }}{% endblock %}
 {% block content %}
-<h1>Demanda #{{ demanda.id }}</h1>
+<h1>Demanda #{{ demanda.id }}{% if demanda.arquivada %} <span class="badge badge-warn">Arquivada</span>{% endif %}</h1>
 <div class="panel">
   <div style="display:flex; justify-content:space-between;">
     <p><strong>{{ demanda.descricao }}</strong></p>
-    {% if usuario.perfil in ("ADMIN", "SUPERADMIN") or usuario.nip == demanda.militar_responsavel_nip %}
-      <a class="btn btn-sm" href="/demandas/{{ demanda.id }}/editar">Editar</a>
-    {% endif %}
+    <div>
+      {% if usuario.perfil in ("ADMIN", "SUPERADMIN") or usuario.nip == demanda.militar_responsavel_nip %}
+        <a class="btn btn-sm" href="/demandas/{{ demanda.id }}/editar">Editar</a>
+        {% if demanda.arquivada %}
+        <form class="inline" method="post" action="/demandas/{{ demanda.id }}/restaurar">
+          <button class="btn btn-sm btn-gold" type="submit">Restaurar</button>
+        </form>
+        {% endif %}
+      {% endif %}
+    </div>
   </div>
   <p>ND {{ demanda.nd }} · Qtd {{ demanda.quantidade }} · Vlr Unit. R$ {{ "%.2f"|format(demanda.valor_unitario) }}
      · Total R$ {{ "%.2f"|format(demanda.valor_total()) }}</p>
