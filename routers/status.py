@@ -143,8 +143,20 @@ def config_status(request: Request, usuario=Depends(exigir_perfil("ADMIN")), db:
     })
 
 
+def _int_ou_none_form(valor: str):
+    valor = (valor or "").strip()
+    if not valor:
+        return None
+    try:
+        n = int(valor)
+        return n if n > 0 else None
+    except ValueError:
+        return None
+
+
 @router.post("/status/config/{tipo_processo}/adicionar")
 def adicionar_status_config(tipo_processo: str, nome_status: str = Form(...), setor: str = Form(""),
+                             prazo: str = Form(""),
                              usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
     maior_ordem = (
         db.query(models.StatusConfig)
@@ -153,13 +165,15 @@ def adicionar_status_config(tipo_processo: str, nome_status: str = Form(...), se
     )
     if nome_status.strip():
         db.add(models.StatusConfig(tipo_processo=tipo_processo, ordem=maior_ordem + 1,
-                                    nome_status=nome_status.strip(), setor=setor or None))
+                                    nome_status=nome_status.strip(), setor=setor or None,
+                                    prazo=_int_ou_none_form(prazo)))
         db.commit()
     return RedirectResponse("/status/config", status_code=303)
 
 
 @router.post("/status/config/{item_id}/editar")
 def editar_status_config(item_id: int, nome_status: str = Form(...), setor: str = Form(""),
+                          prazo: str = Form(""),
                           usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
     item = db.get(models.StatusConfig, item_id)
     if not item or not nome_status.strip():
@@ -168,6 +182,7 @@ def editar_status_config(item_id: int, nome_status: str = Form(...), setor: str 
     nome_antigo = item.nome_status
     item.nome_status = nome_status.strip()
     item.setor = setor or None
+    item.prazo = _int_ou_none_form(prazo)
 
     # Se o nome do passo mudou, atualiza também as linhas de status que estão atualmente
     # paradas nesse passo (e seu histórico), para não perder o rastro de quem já está lá.

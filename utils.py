@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from decimal import Decimal
 import io
+import datetime as dt
 from openpyxl import Workbook
 import models
 
@@ -65,6 +66,95 @@ def eh_status_final(db: Session, tipo_processo: str, status_atual: str) -> bool:
     return bool(lista) and status_atual == lista[-1]
 
 
+def processo_em_andamento(db: Session, linha) -> bool:
+    """Verdadeiro para qualquer autorização ativa que ainda não chegou ao último status
+    configurado do seu tipo de processo (ou que ainda nem teve o tipo definido)."""
+    if linha.autorizacao.cancelada:
+        return False
+    if not linha.tipo_processo:
+        return True
+    return not eh_status_final(db, linha.tipo_processo, linha.status_atual)
+
+
+def esta_atrasado(db: Session, linha) -> bool:
+    """Verdadeiro se a linha está parada no passo atual há mais dias do que o prazo
+    configurado para esse passo (dentro do seu tipo de processo)."""
+    if linha.autorizacao.cancelada or not linha.tipo_processo:
+        return False
+    config = (
+        db.query(models.StatusConfig)
+        .filter(models.StatusConfig.tipo_processo == linha.tipo_processo,
+                models.StatusConfig.nome_status == linha.status_atual)
+        .first()
+    )
+    if not config or not config.prazo:
+        return False
+    data_entrada = None
+    for h in linha.historico:
+        if h.status == linha.status_atual:
+            data_entrada = h.data
+    if not data_entrada:
+        return False
+    dias_no_passo = (dt.datetime.utcnow() - data_entrada).days
+    return dias_no_passo > config.prazo
+
+
+def bucket_financeiro(db: Session, linha) -> str:
+    """Classifica em qual estágio financeiro a linha está: 'em_processo' (ainda não chegou
+    a 'Empenhado'), 'empenhado' (chegou a 'Empenhado' mas não a 'Liquidado') ou 'liquidado'
+    (chegou a 'Liquidado'). Baseado na posição do status atual dentro da lista configurada
+    do tipo de processo — funciona mesmo que 'Empenhado'/'Liquidado' estejam em posições
+    diferentes conforme o tipo."""
+    if not linha or not linha.tipo_processo:
+        return "em_processo"
+
+    lista = lista_status_tipo_processo(db, linha.tipo_processo)
+    idx_empenhado = lista.index("Empenhado") if "Empenhado" in lista else None
+    idx_liquidado = lista.index("Liquidado") if "Liquidado" in lista else None
+    idx_atual = lista.index(linha.status_atual) if linha.status_atual in lista else -1
+
+    if idx_liquidado is not None and idx_atual >= idx_liquidado:
+        return "liquidado"
+    if idx_empenhado is not None and idx_atual >= idx_empenhado:
+        return "empenhado"
+    return "em_processo"
+
+
+def resumo_financeiro_por_nd(db: Session):
+    """Monta, para cada ND, o total Disponível (Recursos), Em processo, Empenhado e Liquidado."""
+    saldos = calcular_saldos(db)
+    disponivel = {}
+    for (nd, _origem_id), valor in saldos.items():
+        disponivel[nd] = disponivel.get(nd, Decimal("0")) + valor
+
+    em_processo = {n: Decimal("0") for n in models.ND_CHOICES}
+    empenhado = {n: Decimal("0") for n in models.ND_CHOICES}
+    liquidado = {n: Decimal("0") for n in models.ND_CHOICES}
+
+    autorizacoes = db.query(models.Autorizacao).filter(models.Autorizacao.cancelada == False).all()
+    for a in autorizacoes:
+        nd = a.demanda.nd
+        valor = Decimal(a.quantidade_autorizada) * Decimal(a.valor_unitario_efetivo())
+        bucket = bucket_financeiro(db, a.linha_status)
+        if bucket == "liquidado":
+            liquidado[nd] = liquidado.get(nd, Decimal("0")) + valor
+        elif bucket == "empenhado":
+            empenhado[nd] = empenhado.get(nd, Decimal("0")) + valor
+        else:
+            em_processo[nd] = em_processo.get(nd, Decimal("0")) + valor
+
+    return [
+        {
+            "nd": nd,
+            "disponivel": disponivel.get(nd, Decimal("0")),
+            "em_processo": em_processo.get(nd, Decimal("0")),
+            "empenhado": empenhado.get(nd, Decimal("0")),
+            "liquidado": liquidado.get(nd, Decimal("0")),
+        }
+        for nd in models.ND_CHOICES
+    ]
+
+
 def construir_linha_tempo(db: Session, linha):
     """Monta a lista de TODOS os passos do tipo de processo da linha (incluindo o estado inicial
     'AUTORIZADA'), marcando qual é o atual e a data em que cada passo já concluído foi alcançado."""
@@ -84,6 +174,7 @@ def construir_linha_tempo(db: Session, linha):
 
     nomes = [p["nome"] for p in passos]
     idx_atual = nomes.index(linha.status_atual) if linha.status_atual in nomes else 0
+    atrasado = esta_atrasado(db, linha)
 
     resultado = []
     for i, p in enumerate(passos):
@@ -91,6 +182,7 @@ def construir_linha_tempo(db: Session, linha):
             "nome": p["nome"],
             "setor": p["setor"],
             "atual": i == idx_atual,
+            "atrasado": i == idx_atual and atrasado,
             "concluido": i < idx_atual,
             "data": datas.get(p["nome"]),
         })

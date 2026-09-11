@@ -11,6 +11,7 @@ from auth import exigir_login, NaoAutenticado, SenhaDeveSerTrocada, hash_senha
 import models
 from routers import auth_routes, recursos, demandas, cem, status, admin, senha
 from webtemplates import templates
+from utils import processo_em_andamento, esta_atrasado, resumo_financeiro_por_nd
 
 Base.metadata.create_all(bind=engine)
 
@@ -48,6 +49,9 @@ def migrar_esquema():
             db.execute(text(
                 "ALTER TABLE demandas ADD COLUMN IF NOT EXISTS arquivada BOOLEAN NOT NULL DEFAULT FALSE"
             ))
+            db.execute(text(
+                "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS prazo INT NULL"
+            ))
             db.commit()
             # Preenche o valor unitário congelado para autorizações criadas antes desse campo existir
             db.execute(text(
@@ -65,6 +69,7 @@ def migrar_esquema():
                 "ALTER TABLE autorizacoes ADD COLUMN motivo_cancelamento TEXT NULL",
                 "ALTER TABLE status_config ADD COLUMN setor VARCHAR(20) NULL",
                 "ALTER TABLE demandas ADD COLUMN arquivada BOOLEAN NOT NULL DEFAULT 0",
+                "ALTER TABLE status_config ADD COLUMN prazo INTEGER NULL",
             ]:
                 try:
                     db.execute(text(comando))
@@ -145,13 +150,22 @@ def criar_superadmin_inicial():
 @app.get("/")
 def dashboard(request: Request, usuario=Depends(exigir_login), db: Session = Depends(get_db)):
     total_demandas_pendentes = sum(
-        1 for d in db.query(models.Demanda).all() if d.quantidade_pendente() > 0
+        1 for d in db.query(models.Demanda).all()
+        if not d.arquivada and d.quantidade_pendente() > 0
     )
+
+    linhas = db.query(models.LinhaStatus).all()
+    processos_em_andamento = sum(1 for l in linhas if processo_em_andamento(db, l))
+    processos_atrasados = sum(1 for l in linhas if esta_atrasado(db, l))
+
+    resumo_nd = resumo_financeiro_por_nd(db)
+
     total_usuarios = db.query(models.Usuario).count()
-    total_linhas_status = db.query(models.LinhaStatus).count()
     return templates.TemplateResponse("dashboard.html", {
         "request": request, "usuario": usuario,
         "total_demandas_pendentes": total_demandas_pendentes,
+        "processos_em_andamento": processos_em_andamento,
+        "processos_atrasados": processos_atrasados,
+        "resumo_nd": resumo_nd,
         "total_usuarios": total_usuarios,
-        "total_linhas_status": total_linhas_status,
     })

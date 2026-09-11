@@ -8,8 +8,12 @@
     <div>Demandas com saldo pendente de autorização</div>
   </div>
   <div class="panel">
-    <div class="valor">{{ total_linhas_status }}</div>
-    <div>Parcelas em acompanhamento de aquisição</div>
+    <div class="valor">{{ processos_em_andamento }}</div>
+    <div>Processos em andamento</div>
+  </div>
+  <div class="panel" {% if processos_atrasados > 0 %}style="border-top:3px solid var(--danger);"{% endif %}>
+    <div class="valor" {% if processos_atrasados > 0 %}style="color:var(--danger);"{% endif %}>{{ processos_atrasados }}</div>
+    <div>Processos atrasados</div>
   </div>
   {% if usuario.perfil in ("ADMIN", "SUPERADMIN") %}
   <div class="panel">
@@ -17,5 +21,25 @@
     <div>Usuários cadastrados</div>
   </div>
   {% endif %}
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0;">Recurso por ND</h2>
+  <table>
+    <thead>
+      <tr><th>ND</th><th>Disponível</th><th>Em processo</th><th>Empenhado</th><th>Liquidado</th></tr>
+    </thead>
+    <tbody>
+      {% for linha in resumo_nd %}
+      <tr>
+        <td><strong>{{ linha.nd }}</strong></td>
+        <td class="{% if linha.disponivel < 0 %}saldo-neg{% endif %}">R$ {{ "%.2f"|format(linha.disponivel) }}</td>
+        <td>R$ {{ "%.2f"|format(linha.em_processo) }}</td>
+        <td>R$ {{ "%.2f"|format(linha.empenhado) }}</td>
+        <td>R$ {{ "%.2f"|format(linha.liquidado) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endblock %}

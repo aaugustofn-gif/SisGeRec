@@ -93,8 +93,8 @@
   {% else %}
     <div class="stepper">
       {% for passo in linhas_tempo[l.id] %}
-      <div class="passo {% if passo.atual %}passo-atual{% elif passo.concluido %}passo-concluido{% else %}passo-pendente{% endif %}">
-        <span class="passo-nome">{% if passo.concluido %}✓ {% endif %}{{ passo.nome }}</span>
+      <div class="passo {% if passo.atrasado %}passo-atrasado{% elif passo.atual %}passo-atual{% elif passo.concluido %}passo-concluido{% else %}passo-pendente{% endif %}">
+        <span class="passo-nome">{% if passo.concluido %}✓ {% endif %}{{ passo.nome }}{% if passo.atrasado %} ⚠{% endif %}</span>
         {% if passo.setor %}<span class="passo-setor">{{ passo.setor }}</span>{% endif %}
         {% if passo.data %}<span class="passo-data">{{ passo.data.strftime("%d/%m/%Y") }}</span>{% endif %}
       </div>

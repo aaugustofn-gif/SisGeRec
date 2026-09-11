@@ -158,3 +158,4 @@ class StatusConfig(Base):
     ordem = Column(Integer, nullable=False)
     nome_status = Column(String(80), nullable=False)
     setor = Column(String(100), nullable=True)  # setor/responsável por executar este passo (texto livre)
+    prazo = Column(Integer, nullable=True)  # prazo máximo em dias para este passo

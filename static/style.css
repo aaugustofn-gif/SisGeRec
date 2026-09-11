@@ -205,6 +205,8 @@ form.inline { display: inline; }
 .passo-concluido .passo-nome { color: var(--ok); }
 .passo-atual { border-left-color: var(--gold); background: rgba(201, 163, 78, 0.10); }
 .passo-atual .passo-nome { color: var(--gold); font-weight: 700; }
+.passo-atrasado { border-left-color: var(--danger); background: rgba(176, 69, 63, 0.12); }
+.passo-atrasado .passo-nome { color: var(--danger); font-weight: 700; }
 .passo-pendente .passo-nome { color: var(--text-dim); }
 .passo-nome { font-size: 0.9em; }
 .passo-setor { font-size: 0.75em; color: var(--text-dim); margin-top: 2px; }
