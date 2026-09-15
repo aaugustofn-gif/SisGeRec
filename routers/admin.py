@@ -1,4 +1,5 @@
 import secrets
+from urllib.parse import quote
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -36,7 +37,7 @@ def criar_usuario(request: Request, nip: str = Form(...), posto: str = Form(...)
                    setor: str = Form(...), perfil: str = Form(...),
                    usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
     if usuario.perfil != "SUPERADMIN" and perfil in ("SUPERADMIN", "ADMIN"):
-        perfil = "COMUM"  # ADMIN não pode criar outro ADMIN/SUPERADMIN
+        perfil = "COMUM"
 
     if db.get(models.Usuario, nip.strip()):
         perfis = models.PERFIL_CHOICES if usuario.perfil == "SUPERADMIN" else ["COMUM", "CEM"]
@@ -69,7 +70,6 @@ def editar_usuario_form(nip: str, request: Request, usuario=Depends(exigir_perfi
     if not alvo:
         return RedirectResponse("/admin/usuarios", status_code=303)
     if usuario.perfil != "SUPERADMIN" and alvo.perfil in ("SUPERADMIN", "ADMIN"):
-        # ADMIN não pode editar SUPERADMIN nem outro ADMIN
         return RedirectResponse("/admin/usuarios", status_code=303)
 
     perfis = models.PERFIL_CHOICES if usuario.perfil == "SUPERADMIN" else ["COMUM", "CEM"]
@@ -91,7 +91,7 @@ def editar_usuario(nip: str, posto: str = Form(...), nome: str = Form(...),
         if alvo.perfil in ("SUPERADMIN", "ADMIN"):
             return RedirectResponse("/admin/usuarios", status_code=303)
         if perfil in ("SUPERADMIN", "ADMIN"):
-            perfil = alvo.perfil  # ADMIN não pode se autopromover nem promover outros
+            perfil = alvo.perfil
 
     alvo.posto = posto
     alvo.nome = nome
@@ -140,6 +140,5 @@ def excluir_usuario(nip: str, usuario=Depends(exigir_perfil("SUPERADMIN")), db: 
             )
     destino = "/admin/usuarios"
     if erro:
-        from urllib.parse import quote
         destino += f"?erro_exclusao={quote(erro)}"
     return RedirectResponse(destino, status_code=303)

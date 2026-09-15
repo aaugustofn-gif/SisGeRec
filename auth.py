@@ -1,5 +1,5 @@
 from passlib.context import CryptContext
-from fastapi import Request, Depends, HTTPException, status
+from fastapi import Request, Depends
 from sqlalchemy.orm import Session
 from database import get_db
 import models
@@ -45,6 +45,7 @@ def exigir_login(request: Request, db: Session = Depends(get_db)) -> models.Usua
 def exigir_perfil(*perfis):
     def dependencia(usuario: models.Usuario = Depends(exigir_login)):
         if usuario.perfil not in perfis and usuario.perfil != "SUPERADMIN":
+            from fastapi import HTTPException
             raise HTTPException(status_code=403, detail="Acesso não autorizado para o seu perfil.")
         return usuario
     return dependencia

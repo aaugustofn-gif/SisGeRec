@@ -1,65 +1,44 @@
 # SisGeRec — Sistema de Gestão de Recursos (ComDivRib)
 
-Painel logístico para controlar recursos (por ND/Origem), demandas, autorização do CEM
-e acompanhamento do processo de aquisição, conforme o desenho aprovado.
+Painel logístico para controlar recursos (por ND/Origem), demandas, autorização do CEM,
+acompanhamento do processo de aquisição (com prazos e observações) e resumo financeiro por ND.
 
-Stack: FastAPI + SQLAlchemy + TiDB Cloud (MySQL-compatible) + Render (mesma stack zero-custo
-usada no SisLog Mil e no QSVO).
+Stack: FastAPI + SQLAlchemy + TiDB Cloud (MySQL-compatible) + Render.
 
-## 1. Banco de dados (TiDB Cloud)
+## Deploy
 
-1. Crie (ou reaproveite) um cluster gratuito no TiDB Cloud (https://tidbcloud.com).
-2. Crie um banco chamado `sisgerec`.
-3. Copie a string de conexão no formato:
-   `mysql+pymysql://USUARIO:SENHA@HOST:4000/sisgerec?ssl_verify_cert=true&ssl_verify_identity=true`
-4. As tabelas são criadas automaticamente no primeiro start da aplicação (não é necessário rodar
-   migração manual).
+1. TiDB Cloud: crie um cluster Serverless grátis e um banco `sisgerec`.
+2. Monte a `DATABASE_URL`: `mysql+pymysql://USUARIO:SENHA@HOST:4000/sisgerec`
+   (sem parâmetros ssl_verify_* — o TLS é configurado no próprio código via certifi).
+3. Suba esta pasta para um repositório no GitHub (arquivos na raiz, não em subpasta).
+4. No Render, crie um Web Service apontando pro repositório.
+5. Em Settings, confira/preencha manualmente (o Render nem sempre lê o render.yaml
+   automaticamente em serviços criados fora do fluxo "Blueprint"):
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - **Environment**: `DATABASE_URL`, `SECRET_KEY`, `SUPERADMIN_NIP`, `SUPERADMIN_SENHA`,
+     `SUPERADMIN_POSTO`, `SUPERADMIN_NOME`, `SUPERADMIN_SETOR`
+6. Deploy. As tabelas são criadas automaticamente no primeiro start, e migrações de colunas
+   novas em tabelas já existentes rodam automaticamente também (função `migrar_esquema()`
+   em `main.py`).
+7. Configure um ping em cron-job.org para a URL do serviço (a cada ~10 min) para evitar que
+   o plano gratuito do Render suspenda a aplicação por inatividade.
 
-## 2. Deploy no Render
+## Primeiro uso
 
-1. Suba esta pasta para um repositório no GitHub (pode ser privado).
-2. No Render, crie um novo **Web Service** apontando para o repositório
-   (o `render.yaml` já define build/start commands automaticamente).
-3. Configure as variáveis de ambiente (aba *Environment*):
-   - `DATABASE_URL` — a string de conexão do TiDB Cloud (passo 1)
-   - `SECRET_KEY` — pode deixar o Render gerar automaticamente
-   - `SUPERADMIN_NIP`, `SUPERADMIN_SENHA`, `SUPERADMIN_POSTO`, `SUPERADMIN_NOME`, `SUPERADMIN_SETOR`
-     — dados do seu primeiro acesso como SUPERADMIN (só são usados uma vez, quando o banco
-     ainda está vazio)
-4. Faça o deploy. Acesse a URL gerada pelo Render e entre com o NIP/senha do SUPERADMIN.
+1. Entre como SUPERADMIN (dados definidos nas variáveis de ambiente SUPERADMIN_*).
+2. Troque a senha (obrigatório no primeiro acesso).
+3. Cadastre as Origens de recurso.
+4. Lance os Recursos iniciais.
+5. Cadastre os demais usuários em Admin > Usuários.
+6. Em Config. de Status, cadastre a sequência de status de cada tipo de processo — use
+   exatamente os nomes "Empenhado" e "Liquidado" nos passos correspondentes, para que o
+   quadro de recursos por ND do Início classifique os valores corretamente. Defina também
+   o setor responsável e o prazo (em dias) de cada passo, se quiser o alerta de atraso.
 
-## 3. Manter o serviço "acordado" (plano gratuito do Render)
-
-Assim como no SisLog Mil e no QSVO, configure um ping periódico em https://cron-job.org
-apontando para a URL do serviço (ex: a cada 10 minutos) para evitar que o plano gratuito
-do Render suspenda a aplicação por inatividade.
-
-## 4. Primeiro uso
-
-1. Entre como SUPERADMIN.
-2. Cadastre as **Origens** de recurso (menu Origens).
-3. Lance os **Recursos** iniciais (ND + Origem + Valor).
-4. Cadastre os demais usuários (ADMIN, CEM, usuários COMUM) em Admin > Usuários —
-   uma senha provisória é gerada e exibida na tela para você repassar ao militar.
-5. Em **Config. de Status**, cadastre a sequência de status de cada tipo de processo
-   (Já licitado / Adesão / Dispensa de licitação / Cartão de suprimento de fundos)
-   assim que sua equipe fechar essas listas. Enquanto isso não for feito, as parcelas
-   autorizadas ficam paradas em "AUTORIZADA" até que o ADMIN/SUPERADMIN defina o tipo
-   de processo de cada uma no painel de Status.
-
-## 5. Rodar localmente (opcional, para testes)
+## Rodar localmente (opcional)
 
 ```bash
 pip install -r requirements.txt
 uvicorn main:app --reload
 ```
-Sem `DATABASE_URL` definida, a aplicação usa automaticamente um arquivo SQLite local
-(`sisgerec_local.db`), útil apenas para testes — não use isso em produção.
-
-## 6. Observação sobre este pacote
-
-O código foi revisado e sua sintaxe foi validada (compilação Python de todos os módulos),
-mas não pôde ser executado ponta a ponta neste ambiente por falta de acesso à rede para
-instalar as dependências. Recomendo testar o fluxo completo (login → recurso → demanda →
-autorização CEM → status) logo após o primeiro deploy, e me avisar se algo não se comportar
-como esperado para eu corrigir.
+Sem `DATABASE_URL` definida, usa um SQLite local (`sisgerec_local.db`) — só para testes.

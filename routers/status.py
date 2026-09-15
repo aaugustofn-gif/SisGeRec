@@ -12,7 +12,6 @@ router = APIRouter()
 
 
 def _ordenar(linhas):
-    # Linhas em status final vão para o fim; as demais mantêm ordem de criação
     return sorted(linhas, key=lambda l: (l.ordem_manual, l.data_criacao))
 
 
@@ -76,7 +75,6 @@ def avancar_status(linha_id: int, usuario=Depends(exigir_login), db: Session = D
         return RedirectResponse("/status", status_code=303)
 
     demanda = linha.autorizacao.demanda
-    # Só o militar responsável pela demanda (ou admin/superadmin) pode atualizar
     if usuario.nip != demanda.militar_responsavel_nip and usuario.perfil not in ("ADMIN", "SUPERADMIN"):
         return RedirectResponse("/status", status_code=303)
 
@@ -91,7 +89,7 @@ def avancar_status(linha_id: int, usuario=Depends(exigir_login), db: Session = D
     ))
 
     if eh_status_final(db, linha.tipo_processo, novo):
-        linha.ordem_manual = 1  # empurra para o final da listagem
+        linha.ordem_manual = 1
 
     db.commit()
     return RedirectResponse("/status", status_code=303)
@@ -114,9 +112,29 @@ def cancelar_processo(linha_id: int, motivo: str = Form(""),
     autorizacao.motivo_cancelamento = motivo or None
 
     linha.status_atual = "CANCELADA"
-    linha.ordem_manual = 1  # empurra para o final da listagem
+    linha.ordem_manual = 1
     db.add(models.StatusHistorico(
         linha_status_id=linha.id, status="CANCELADA", data=agora, alterado_por_nip=usuario.nip,
+    ))
+    db.commit()
+    return RedirectResponse("/status", status_code=303)
+
+
+# ---- Observações do processo (acumuladas desde a aprovação pelo CEM) ----
+
+@router.post("/status/{linha_id}/observacoes")
+def adicionar_observacao(linha_id: int, texto: str = Form(...),
+                          usuario=Depends(exigir_login), db: Session = Depends(get_db)):
+    linha = db.get(models.LinhaStatus, linha_id)
+    if not linha or not texto.strip():
+        return RedirectResponse("/status", status_code=303)
+
+    demanda = linha.autorizacao.demanda
+    if usuario.nip != demanda.militar_responsavel_nip and usuario.perfil not in ("ADMIN", "SUPERADMIN", "CEM"):
+        return RedirectResponse("/status", status_code=303)
+
+    db.add(models.ObservacaoProcesso(
+        linha_status_id=linha.id, texto=texto.strip(), autor_nip=usuario.nip,
     ))
     db.commit()
     return RedirectResponse("/status", status_code=303)
@@ -184,8 +202,6 @@ def editar_status_config(item_id: int, nome_status: str = Form(...), setor: str 
     item.setor = setor or None
     item.prazo = _int_ou_none_form(prazo)
 
-    # Se o nome do passo mudou, atualiza também as linhas de status que estão atualmente
-    # paradas nesse passo (e seu histórico), para não perder o rastro de quem já está lá.
     if nome_antigo != item.nome_status:
         linhas_no_passo = (
             db.query(models.LinhaStatus)

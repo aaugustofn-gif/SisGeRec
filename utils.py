@@ -8,7 +8,8 @@ import models
 
 
 def calcular_saldos(db: Session):
-    """Retorna dict {(nd, origem_id): saldo_decimal} considerando lançamentos - autorizações ratificadas."""
+    """Retorna dict {(nd, origem_id): saldo_decimal} considerando lançamentos - autorizações
+    ativas (não canceladas), usando o valor unitário efetivo de cada autorização."""
     saldos = {}
     for r in db.query(models.Recurso).all():
         chave = (r.nd, r.origem_id)
@@ -28,6 +29,16 @@ def saldo_nd_origem(db: Session, nd: str, origem_id: int) -> Decimal:
     return saldos.get((nd, origem_id), Decimal("0"))
 
 
+def int_ou_none(valor):
+    """Converte string de query param em int, tratando '' (opção 'Todas' dos filtros) como None."""
+    if valor in (None, ""):
+        return None
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return None
+
+
 def lista_status_tipo_processo(db: Session, tipo_processo: str):
     itens = (
         db.query(models.StatusConfig)
@@ -39,7 +50,6 @@ def lista_status_tipo_processo(db: Session, tipo_processo: str):
 
 
 def proximo_status(db: Session, tipo_processo: str, status_atual: str):
-    """Retorna o próximo status da lista configurada, ou None se já está no último (ou lista vazia)."""
     lista = lista_status_tipo_processo(db, tipo_processo)
     if not lista:
         return None
@@ -48,17 +58,7 @@ def proximo_status(db: Session, tipo_processo: str, status_atual: str):
     idx = lista.index(status_atual)
     if idx + 1 < len(lista):
         return lista[idx + 1]
-    return None  # já está no último status
-
-
-def int_ou_none(valor):
-    """Converte string de query param em int, tratando '' (opção 'Todas' dos filtros) como None."""
-    if valor in (None, ""):
-        return None
-    try:
-        return int(valor)
-    except (TypeError, ValueError):
-        return None
+    return None
 
 
 def eh_status_final(db: Session, tipo_processo: str, status_atual: str) -> bool:
@@ -102,9 +102,7 @@ def esta_atrasado(db: Session, linha) -> bool:
 def bucket_financeiro(db: Session, linha) -> str:
     """Classifica em qual estágio financeiro a linha está: 'em_processo' (ainda não chegou
     a 'Empenhado'), 'empenhado' (chegou a 'Empenhado' mas não a 'Liquidado') ou 'liquidado'
-    (chegou a 'Liquidado'). Baseado na posição do status atual dentro da lista configurada
-    do tipo de processo — funciona mesmo que 'Empenhado'/'Liquidado' estejam em posições
-    diferentes conforme o tipo."""
+    (chegou a 'Liquidado')."""
     if not linha or not linha.tipo_processo:
         return "em_processo"
 
@@ -157,7 +155,8 @@ def resumo_financeiro_por_nd(db: Session):
 
 def construir_linha_tempo(db: Session, linha):
     """Monta a lista de TODOS os passos do tipo de processo da linha (incluindo o estado inicial
-    'AUTORIZADA'), marcando qual é o atual e a data em que cada passo já concluído foi alcançado."""
+    'AUTORIZADA'), marcando qual é o atual (e se está atrasado) e a data em que cada passo já
+    concluído foi alcançado."""
     configs = (
         db.query(models.StatusConfig)
         .filter(models.StatusConfig.tipo_processo == linha.tipo_processo)

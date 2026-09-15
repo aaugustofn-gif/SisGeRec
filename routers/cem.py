@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, Form, Query
+from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from decimal import Decimal
@@ -44,7 +44,6 @@ async def ratificar(request: Request, nd: List[str] = Query(default=[]),
                      usuario=Depends(exigir_perfil("CEM")), db: Session = Depends(get_db)):
     form = await request.form()
 
-    # Coleta linhas preenchidas: campos demanda_qtd_<id> e demanda_origem_<id>
     autorizacoes_a_criar = []
     saldos = calcular_saldos(db)
 
@@ -67,7 +66,7 @@ async def ratificar(request: Request, nd: List[str] = Query(default=[]),
                 continue
             pendente = demanda.quantidade_pendente()
             if qtd > pendente:
-                qtd = pendente  # trava de segurança: nunca autoriza além do pendente
+                qtd = pendente
             if qtd <= 0:
                 continue
 
@@ -75,7 +74,7 @@ async def ratificar(request: Request, nd: List[str] = Query(default=[]),
             chave_saldo = (demanda.nd, origem_id)
             saldo_atual = saldos.get(chave_saldo, Decimal("0"))
             if debito > saldo_atual:
-                continue  # trava de segurança: não autoriza sem saldo suficiente
+                continue
 
             saldos[chave_saldo] = saldo_atual - debito
             autorizacoes_a_criar.append((demanda, qtd, origem_id))
@@ -88,7 +87,7 @@ async def ratificar(request: Request, nd: List[str] = Query(default=[]),
             data_ratificacao=agora, ratificado_por_nip=usuario.nip,
         )
         db.add(autorizacao)
-        db.flush()  # garante autorizacao.id antes de criar a linha de status
+        db.flush()
 
         linha = models.LinhaStatus(autorizacao_id=autorizacao.id, status_atual=models.STATUS_INICIAL)
         db.add(linha)
@@ -100,6 +99,7 @@ async def ratificar(request: Request, nd: List[str] = Query(default=[]),
         ))
 
     db.commit()
+
     destino = "/cem/autorizar"
     if nd:
         destino += "?" + "&".join(f"nd={n}" for n in nd)

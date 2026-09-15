@@ -74,7 +74,7 @@ def nova_demanda_form(request: Request, usuario=Depends(exigir_login), db: Sessi
     origens = db.query(models.Origem).filter(models.Origem.ativo == True).order_by(models.Origem.nome).all()
     return templates.TemplateResponse("demanda_form.html", {
         "request": request, "usuario": usuario, "origens": origens,
-        "nd_choices": models.ND_CHOICES, "erro": None,
+        "nd_choices": models.ND_CHOICES, "erro": None, "demanda": None, "bloqueado": False,
     })
 
 
@@ -92,6 +92,7 @@ def criar_demanda(request: Request, descricao: str = Form(...), quantidade: int 
         return templates.TemplateResponse("demanda_form.html", {
             "request": request, "usuario": usuario, "origens": origens,
             "nd_choices": models.ND_CHOICES, "erro": "Quantidade ou valor unitário inválido.",
+            "demanda": None, "bloqueado": False,
         }, status_code=400)
 
     demanda = models.Demanda(

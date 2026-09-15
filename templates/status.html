@@ -115,6 +115,28 @@
       {% endif %}
     </div>
   {% endif %}
+
+  <details style="margin-top:10px;">
+    <summary style="cursor:pointer; color:var(--text-dim); font-size:0.85em;">
+      📝 Observações ({{ l.observacoes|length }})
+    </summary>
+    <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">
+      {% for obs in l.observacoes %}
+      <div style="margin-bottom:8px; font-size:0.85em;">
+        <span style="color:var(--text-dim);">{{ obs.data.strftime("%d/%m/%Y %H:%M") }} — {{ obs.autor.nome_completo() }}:</span><br>
+        {{ obs.texto }}
+      </div>
+      {% else %}
+      <p style="color:var(--text-dim); font-size:0.85em;">Nenhuma observação registrada ainda.</p>
+      {% endfor %}
+      {% if usuario.nip == demanda.militar_responsavel_nip or usuario.perfil in ("ADMIN", "SUPERADMIN", "CEM") %}
+      <form method="post" action="/status/{{ l.id }}/observacoes" style="display:flex; gap:6px; margin-top:6px;">
+        <input type="text" name="texto" placeholder="Nova observação..." required style="flex:1;">
+        <button class="btn btn-sm" type="submit">Adicionar</button>
+      </form>
+      {% endif %}
+    </div>
+  </details>
 </div>
 {% endfor %}
 

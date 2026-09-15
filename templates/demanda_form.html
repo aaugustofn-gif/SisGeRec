@@ -40,6 +40,7 @@
       <a class="btn" href="{% if demanda %}/demandas/{{ demanda.id }}{% else %}/demandas{% endif %}">Cancelar</a>
     </div>
   </form>
+
   {% if demanda %}
     {% if demanda.arquivada %}
     <div class="erro" style="margin-top:10px;">Esta demanda está arquivada — não aparece nas

@@ -3,8 +3,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from database import get_db
 from auth import verificar_senha, get_usuario_logado
-import models
 from webtemplates import templates
+import models
 
 router = APIRouter()
 

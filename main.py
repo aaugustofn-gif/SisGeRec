@@ -17,41 +17,24 @@ Base.metadata.create_all(bind=engine)
 
 
 def migrar_esquema():
-    """Adiciona colunas novas em bancos já existentes (SQLAlchemy create_all não altera tabelas existentes)."""
+    """Adiciona colunas novas em bancos já existentes (SQLAlchemy create_all não altera tabelas
+    existentes, só cria tabelas novas que ainda não existam)."""
     db = SessionLocal()
     try:
         if DATABASE_URL.startswith("mysql"):
-            db.execute(text(
-                "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS "
-                "deve_trocar_senha BOOLEAN NOT NULL DEFAULT TRUE"
-            ))
-            db.execute(text(
-                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS valor_unitario DECIMAL(14,2) NULL"
-            ))
-            db.execute(text(
-                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS cancelada BOOLEAN NOT NULL DEFAULT FALSE"
-            ))
-            db.execute(text(
-                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS data_cancelamento DATETIME NULL"
-            ))
-            db.execute(text(
-                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS cancelado_por_nip VARCHAR(20) NULL"
-            ))
-            db.execute(text(
-                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT NULL"
-            ))
-            db.execute(text(
-                "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS setor VARCHAR(20) NULL"
-            ))
-            db.execute(text(
-                "ALTER TABLE status_config MODIFY COLUMN setor VARCHAR(100) NULL"
-            ))
-            db.execute(text(
-                "ALTER TABLE demandas ADD COLUMN IF NOT EXISTS arquivada BOOLEAN NOT NULL DEFAULT FALSE"
-            ))
-            db.execute(text(
-                "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS prazo INT NULL"
-            ))
+            comandos = [
+                "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS deve_trocar_senha BOOLEAN NOT NULL DEFAULT TRUE",
+                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS valor_unitario DECIMAL(14,2) NULL",
+                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS cancelada BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS data_cancelamento DATETIME NULL",
+                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS cancelado_por_nip VARCHAR(20) NULL",
+                "ALTER TABLE autorizacoes ADD COLUMN IF NOT EXISTS motivo_cancelamento TEXT NULL",
+                "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS setor VARCHAR(100) NULL",
+                "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS prazo INT NULL",
+                "ALTER TABLE demandas ADD COLUMN IF NOT EXISTS arquivada BOOLEAN NOT NULL DEFAULT FALSE",
+            ]
+            for cmd in comandos:
+                db.execute(text(cmd))
             db.commit()
             # Preenche o valor unitário congelado para autorizações criadas antes desse campo existir
             db.execute(text(
@@ -67,9 +50,9 @@ def migrar_esquema():
                 "ALTER TABLE autorizacoes ADD COLUMN data_cancelamento DATETIME NULL",
                 "ALTER TABLE autorizacoes ADD COLUMN cancelado_por_nip VARCHAR(20) NULL",
                 "ALTER TABLE autorizacoes ADD COLUMN motivo_cancelamento TEXT NULL",
-                "ALTER TABLE status_config ADD COLUMN setor VARCHAR(20) NULL",
-                "ALTER TABLE demandas ADD COLUMN arquivada BOOLEAN NOT NULL DEFAULT 0",
+                "ALTER TABLE status_config ADD COLUMN setor VARCHAR(100) NULL",
                 "ALTER TABLE status_config ADD COLUMN prazo INTEGER NULL",
+                "ALTER TABLE demandas ADD COLUMN arquivada BOOLEAN NOT NULL DEFAULT 0",
             ]:
                 try:
                     db.execute(text(comando))
@@ -106,6 +89,7 @@ async def sem_cache(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return response
 
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(auth_routes.router)
@@ -129,7 +113,6 @@ async def handler_senha_deve_ser_trocada(request: Request, exc: SenhaDeveSerTroc
 
 @app.on_event("startup")
 def criar_superadmin_inicial():
-    """Cria o primeiro SUPERADMIN a partir de variáveis de ambiente, se ainda não existir nenhum usuário."""
     db: Session = next(get_db())
     try:
         if db.query(models.Usuario).count() == 0:

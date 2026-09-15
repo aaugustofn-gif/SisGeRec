@@ -8,12 +8,13 @@ from database import Base
 ND_CHOICES = ["15", "30", "33", "39", "52"]
 SETOR_CHOICES = ["G10", "G20", "G30", "G40", "SECOM", "C Msg", "ComSoc", "Info"]
 PERFIL_CHOICES = ["SUPERADMIN", "ADMIN", "CEM", "COMUM"]
-TIPO_PROCESSO_CHOICES = ["LICITADO", "ADESAO", "DISPENSA", "CSF"]
+TIPO_PROCESSO_CHOICES = ["LICITADO", "ADESAO", "DISPENSA", "CSF", "TRANSF_OM"]
 TIPO_PROCESSO_LABELS = {
     "LICITADO": "Já licitado",
     "ADESAO": "Adesão",
     "DISPENSA": "Dispensa de licitação",
     "CSF": "Cartão de suprimento de fundos",
+    "TRANSF_OM": "Transferência de crédito para outra OM",
 }
 STATUS_INICIAL = "AUTORIZADA"
 
@@ -100,7 +101,7 @@ class Autorizacao(Base):
     demanda_id = Column(Integer, ForeignKey("demandas.id"), nullable=False)
     quantidade_autorizada = Column(Integer, nullable=False)
     origem_id = Column(Integer, ForeignKey("origens.id"), nullable=False)
-    valor_unitario = Column(Numeric(14, 2), nullable=True)  # "congelado" no momento da ratificação
+    valor_unitario = Column(Numeric(14, 2), nullable=True)  # sincronizado com a demanda (ver rota de edição)
     data_ratificacao = Column(DateTime, default=dt.datetime.utcnow)
     ratificado_por_nip = Column(String(20), ForeignKey("usuarios.nip"), nullable=False)
 
@@ -116,8 +117,6 @@ class Autorizacao(Base):
     linha_status = relationship("LinhaStatus", back_populates="autorizacao", uselist=False)
 
     def valor_unitario_efetivo(self):
-        """Valor unitário travado no momento da autorização; recorre ao valor atual da
-        demanda apenas como fallback para registros antigos que ainda não tinham esse campo."""
         return self.valor_unitario if self.valor_unitario is not None else self.demanda.valor_unitario
 
     def valor(self):
@@ -130,12 +129,14 @@ class LinhaStatus(Base):
     autorizacao_id = Column(Integer, ForeignKey("autorizacoes.id"), nullable=False, unique=True)
     tipo_processo = Column(String(20), nullable=True)
     status_atual = Column(String(80), nullable=False, default=STATUS_INICIAL)
-    ordem_manual = Column(Integer, default=0)  # usado para empurrar ao fim quando concluída
+    ordem_manual = Column(Integer, default=0)  # usado para empurrar ao fim quando concluída/cancelada
     data_criacao = Column(DateTime, default=dt.datetime.utcnow)
 
     autorizacao = relationship("Autorizacao", back_populates="linha_status")
     historico = relationship("StatusHistorico", back_populates="linha_status",
                               order_by="StatusHistorico.data")
+    observacoes = relationship("ObservacaoProcesso", back_populates="linha_status",
+                                order_by="ObservacaoProcesso.data")
 
 
 class StatusHistorico(Base):
@@ -148,6 +149,19 @@ class StatusHistorico(Base):
 
     linha_status = relationship("LinhaStatus", back_populates="historico")
     alterado_por = relationship("Usuario")
+
+
+class ObservacaoProcesso(Base):
+    """Anotações livres acumuladas ao longo do processo de aquisição de uma parcela autorizada."""
+    __tablename__ = "observacoes_processo"
+    id = Column(Integer, primary_key=True)
+    linha_status_id = Column(Integer, ForeignKey("linhas_status.id"), nullable=False)
+    texto = Column(Text, nullable=False)
+    data = Column(DateTime, default=dt.datetime.utcnow)
+    autor_nip = Column(String(20), ForeignKey("usuarios.nip"), nullable=False)
+
+    linha_status = relationship("LinhaStatus", back_populates="observacoes")
+    autor = relationship("Usuario")
 
 
 class StatusConfig(Base):
