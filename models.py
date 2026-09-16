@@ -8,13 +8,14 @@ from database import Base
 ND_CHOICES = ["15", "30", "33", "39", "52"]
 SETOR_CHOICES = ["G10", "G20", "G30", "G40", "SECOM", "C Msg", "ComSoc", "Info"]
 PERFIL_CHOICES = ["SUPERADMIN", "ADMIN", "CEM", "COMUM"]
-TIPO_PROCESSO_CHOICES = ["LICITADO", "ADESAO", "DISPENSA", "CSF", "TRANSF_OM"]
+TIPO_PROCESSO_CHOICES = ["LICITADO", "ADESAO", "DISPENSA", "CSF", "TRANSF_OM", "DIARIAS"]
 TIPO_PROCESSO_LABELS = {
     "LICITADO": "Já licitado",
     "ADESAO": "Adesão",
     "DISPENSA": "Dispensa de licitação",
     "CSF": "Cartão de suprimento de fundos",
     "TRANSF_OM": "Transferência de crédito para outra OM",
+    "DIARIAS": "Pagamento de diárias",
 }
 STATUS_INICIAL = "AUTORIZADA"
 
