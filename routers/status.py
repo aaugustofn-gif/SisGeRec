@@ -44,6 +44,10 @@ def painel_status(request: Request, status_filtro: str = None, tipo_processo: st
         l.id: construir_linha_tempo(db, l)
         for l in linhas if l.tipo_processo and not l.autorizacao.cancelada
     }
+    ultimos_passos = {
+        l.id: eh_status_final(db, l.tipo_processo, l.status_atual)
+        for l in linhas if l.tipo_processo and not l.autorizacao.cancelada
+    }
 
     origens = db.query(models.Origem).order_by(models.Origem.nome).all()
 
@@ -52,35 +56,66 @@ def painel_status(request: Request, status_filtro: str = None, tipo_processo: st
         "nd_choices": models.ND_CHOICES, "setor_choices": models.SETOR_CHOICES,
         "tipo_processo_choices": models.TIPO_PROCESSO_CHOICES,
         "tipo_processo_labels": models.TIPO_PROCESSO_LABELS,
-        "linhas_tempo": linhas_tempo,
+        "linhas_tempo": linhas_tempo, "ultimos_passos": ultimos_passos,
         "filtros": {"status": status_filtro, "tipo_processo": tipo_processo, "nd": nd,
                     "origem_id": origem_id, "setor": setor},
     })
 
 
+def _responder(request, db, linha, usuario, ajax: str, abrir_observacoes: str = ""):
+    """Se a ação veio via AJAX, devolve só o cartão re-renderizado (para substituição
+    no lugar, sem recarregar a página). Caso contrário, faz o redirecionamento normal —
+    isso mantém o sistema funcionando mesmo com JavaScript desabilitado."""
+    if not ajax:
+        return RedirectResponse("/status", status_code=303)
+
+    db.refresh(linha)
+    passos = None
+    no_ultimo = False
+    if linha.tipo_processo and not linha.autorizacao.cancelada:
+        passos = construir_linha_tempo(db, linha)
+        no_ultimo = eh_status_final(db, linha.tipo_processo, linha.status_atual)
+
+    return templates.TemplateResponse("_status_card.html", {
+        "request": request, "usuario": usuario, "l": linha,
+        "passos": passos, "no_ultimo_passo": no_ultimo,
+        "abrir_observacoes": bool(abrir_observacoes),
+        "tipo_processo_choices": models.TIPO_PROCESSO_CHOICES,
+        "tipo_processo_labels": models.TIPO_PROCESSO_LABELS,
+    })
+
+
 @router.post("/status/{linha_id}/definir-tipo")
-def definir_tipo_processo(linha_id: int, tipo_processo: str = Form(...),
+def definir_tipo_processo(request: Request, linha_id: int, tipo_processo: str = Form(...),
+                           ajax: str = Form(""), abrir_observacoes: str = Form(""),
                            usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
     linha = db.get(models.LinhaStatus, linha_id)
     if linha and not linha.tipo_processo and not linha.autorizacao.cancelada:
         linha.tipo_processo = tipo_processo
         db.commit()
-    return RedirectResponse("/status", status_code=303)
+    if not linha:
+        return RedirectResponse("/status", status_code=303)
+    return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
 
 @router.post("/status/{linha_id}/avancar")
-def avancar_status(linha_id: int, usuario=Depends(exigir_login), db: Session = Depends(get_db)):
+def avancar_status(request: Request, linha_id: int,
+                    ajax: str = Form(""), abrir_observacoes: str = Form(""),
+                    usuario=Depends(exigir_login), db: Session = Depends(get_db)):
     linha = db.get(models.LinhaStatus, linha_id)
-    if not linha or not linha.tipo_processo or linha.autorizacao.cancelada:
+    if not linha:
         return RedirectResponse("/status", status_code=303)
+    if not linha.tipo_processo or linha.autorizacao.cancelada:
+        return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
     demanda = linha.autorizacao.demanda
     if usuario.nip != demanda.militar_responsavel_nip and usuario.perfil not in ("ADMIN", "SUPERADMIN"):
-        return RedirectResponse("/status", status_code=303)
+        return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
     novo = proximo_status(db, linha.tipo_processo, linha.status_atual)
     if novo is None:
-        return RedirectResponse("/status", status_code=303)
+        # Já está no último passo configurado — nada a avançar.
+        return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
     agora = dt.datetime.utcnow()
     linha.status_atual = novo
@@ -92,17 +127,20 @@ def avancar_status(linha_id: int, usuario=Depends(exigir_login), db: Session = D
         linha.ordem_manual = 1
 
     db.commit()
-    return RedirectResponse("/status", status_code=303)
+    return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
 
 @router.post("/status/{linha_id}/cancelar")
-def cancelar_processo(linha_id: int, motivo: str = Form(""),
+def cancelar_processo(request: Request, linha_id: int, motivo: str = Form(""),
+                       ajax: str = Form(""), abrir_observacoes: str = Form(""),
                        usuario=Depends(exigir_perfil("ADMIN")), db: Session = Depends(get_db)):
     """Cancela a autorização/processo de aquisição: libera o saldo (deixa de ser debitado)
     e a demanda volta a ter saldo pendente de autorização, podendo ser autorizada novamente."""
     linha = db.get(models.LinhaStatus, linha_id)
-    if not linha or linha.autorizacao.cancelada:
+    if not linha:
         return RedirectResponse("/status", status_code=303)
+    if linha.autorizacao.cancelada:
+        return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
     agora = dt.datetime.utcnow()
     autorizacao = linha.autorizacao
@@ -117,27 +155,28 @@ def cancelar_processo(linha_id: int, motivo: str = Form(""),
         linha_status_id=linha.id, status="CANCELADA", data=agora, alterado_por_nip=usuario.nip,
     ))
     db.commit()
-    return RedirectResponse("/status", status_code=303)
+    return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
 
 # ---- Observações do processo (acumuladas desde a aprovação pelo CEM) ----
 
 @router.post("/status/{linha_id}/observacoes")
-def adicionar_observacao(linha_id: int, texto: str = Form(...),
+def adicionar_observacao(request: Request, linha_id: int, texto: str = Form(...),
+                          ajax: str = Form(""), abrir_observacoes: str = Form(""),
                           usuario=Depends(exigir_login), db: Session = Depends(get_db)):
     linha = db.get(models.LinhaStatus, linha_id)
-    if not linha or not texto.strip():
+    if not linha:
         return RedirectResponse("/status", status_code=303)
 
     demanda = linha.autorizacao.demanda
-    if usuario.nip != demanda.militar_responsavel_nip and usuario.perfil not in ("ADMIN", "SUPERADMIN", "CEM"):
-        return RedirectResponse("/status", status_code=303)
-
-    db.add(models.ObservacaoProcesso(
-        linha_status_id=linha.id, texto=texto.strip(), autor_nip=usuario.nip,
-    ))
-    db.commit()
-    return RedirectResponse("/status", status_code=303)
+    pode = (usuario.nip == demanda.militar_responsavel_nip
+            or usuario.perfil in ("ADMIN", "SUPERADMIN", "CEM"))
+    if pode and texto.strip():
+        db.add(models.ObservacaoProcesso(
+            linha_status_id=linha.id, texto=texto.strip(), autor_nip=usuario.nip,
+        ))
+        db.commit()
+    return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
 
 # ---- Configuração de listas de status por tipo de processo (ADMIN) ----

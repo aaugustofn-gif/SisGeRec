@@ -44,103 +44,55 @@
 </div>
 
 {% for l in linhas %}
-{% set demanda = l.autorizacao.demanda %}
-{% set cancelada = l.autorizacao.cancelada %}
-<div class="panel" {% if cancelada %}style="opacity:0.65;"{% endif %}>
-  <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-    <div>
-      <strong>{{ demanda.descricao }}</strong><br>
-      <span style="color:var(--text-dim); font-size:0.88em;">
-        ND {{ demanda.nd }} · Qtd autorizada {{ l.autorizacao.quantidade_autorizada }} ·
-        Vlr Unit. R$ {{ "%.2f"|format(l.autorizacao.valor_unitario_efetivo()) }} ·
-        Origem {{ l.autorizacao.origem.nome }} · Setor {{ demanda.setor }} ·
-        Responsável {{ demanda.militar_responsavel.nome_completo() }}
-      </span>
-    </div>
-    <div style="text-align:right;">
-      {% if cancelada %}
-        <span class="badge badge-warn">CANCELADA</span>
-      {% elif l.tipo_processo %}
-        <span class="badge badge-gold">{{ tipo_processo_labels[l.tipo_processo] }}</span>
-      {% else %}
-        <span class="badge badge-warn">Tipo de processo não definido</span>
-      {% endif %}
-    </div>
-  </div>
-
-  {% if not l.tipo_processo and not cancelada %}
-    <div class="status-linha">
-      <span class="badge badge-ok">{{ l.status_atual }}</span>
-      {% if usuario.perfil in ("ADMIN", "SUPERADMIN") %}
-        <form class="inline" method="post" action="/status/{{ l.id }}/definir-tipo">
-          <select name="tipo_processo" required>
-            <option value="">Definir tipo de processo...</option>
-            {% for t in tipo_processo_choices %}<option value="{{ t }}">{{ tipo_processo_labels[t] }}</option>{% endfor %}
-          </select>
-          <button class="btn btn-sm" type="submit">Definir</button>
-        </form>
-      {% endif %}
-    </div>
-  {% elif cancelada %}
-    <div class="status-linha">
-      <span class="badge badge-warn">{{ l.status_atual }}</span>
-      <span style="color:var(--text-dim); font-size:0.85em;">
-        Cancelado em {{ l.autorizacao.data_cancelamento.strftime("%d/%m/%Y") }}
-        por {{ l.autorizacao.cancelado_por.nome_completo() }}
-        {% if l.autorizacao.motivo_cancelamento %} — motivo: {{ l.autorizacao.motivo_cancelamento }}{% endif %}
-      </span>
-    </div>
-  {% else %}
-    <div class="stepper">
-      {% for passo in linhas_tempo[l.id] %}
-      <div class="passo {% if passo.atrasado %}passo-atrasado{% elif passo.atual %}passo-atual{% elif passo.concluido %}passo-concluido{% else %}passo-pendente{% endif %}">
-        <span class="passo-nome">{% if passo.concluido %}✓ {% endif %}{{ passo.nome }}{% if passo.atrasado %} ⚠{% endif %}</span>
-        {% if passo.setor %}<span class="passo-setor">{{ passo.setor }}</span>{% endif %}
-        {% if passo.data %}<span class="passo-data">{{ passo.data.strftime("%d/%m/%Y") }}</span>{% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    <div class="status-linha">
-      {% if usuario.nip == demanda.militar_responsavel_nip or usuario.perfil in ("ADMIN", "SUPERADMIN") %}
-        <form class="inline" method="post" action="/status/{{ l.id }}/avancar">
-          <button class="btn btn-sm">Avançar status</button>
-        </form>
-      {% endif %}
-      {% if usuario.perfil in ("ADMIN", "SUPERADMIN") %}
-        <form class="inline" method="post" action="/status/{{ l.id }}/cancelar"
-              onsubmit="return confirm('Cancelar este processo? O saldo será liberado de volta para Recursos e a demanda voltará a ficar pendente de autorização. Essa ação não pode ser desfeita.');">
-          <input type="text" name="motivo" placeholder="Motivo (opcional)" style="width:160px; display:inline-block;">
-          <button class="btn btn-sm btn-danger" type="submit">Cancelar processo</button>
-        </form>
-      {% endif %}
-    </div>
-  {% endif %}
-
-  <details style="margin-top:10px;">
-    <summary style="cursor:pointer; color:var(--text-dim); font-size:0.85em;">
-      📝 Observações ({{ l.observacoes|length }})
-    </summary>
-    <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border);">
-      {% for obs in l.observacoes %}
-      <div style="margin-bottom:8px; font-size:0.85em;">
-        <span style="color:var(--text-dim);">{{ obs.data.strftime("%d/%m/%Y %H:%M") }} — {{ obs.autor.nome_completo() }}:</span><br>
-        {{ obs.texto }}
-      </div>
-      {% else %}
-      <p style="color:var(--text-dim); font-size:0.85em;">Nenhuma observação registrada ainda.</p>
-      {% endfor %}
-      {% if usuario.nip == demanda.militar_responsavel_nip or usuario.perfil in ("ADMIN", "SUPERADMIN", "CEM") %}
-      <form method="post" action="/status/{{ l.id }}/observacoes" style="display:flex; gap:6px; margin-top:6px;">
-        <input type="text" name="texto" placeholder="Nova observação..." required style="flex:1;">
-        <button class="btn btn-sm" type="submit">Adicionar</button>
-      </form>
-      {% endif %}
-    </div>
-  </details>
+<div class="panel card-status" id="card-{{ l.id }}" data-linha-id="{{ l.id }}"
+     {% if l.autorizacao.cancelada %}style="opacity:0.65;"{% endif %}>
+  {% with passos = linhas_tempo.get(l.id), no_ultimo_passo = ultimos_passos.get(l.id, False), abrir_observacoes = False %}
+    {% include "_status_card.html" %}
+  {% endwith %}
 </div>
 {% endfor %}
 
 {% if not linhas %}
 <div class="panel">Nenhuma linha de status encontrada com os filtros aplicados.</div>
 {% endif %}
+
+<script>
+// Intercepta os envios dentro dos cartões: em vez de recarregar a página inteira,
+// envia em segundo plano e substitui apenas o cartão afetado, preservando a rolagem.
+document.addEventListener('submit', async function (evento) {
+  const form = evento.target.closest('.form-ajax');
+  if (!form) return;
+
+  evento.preventDefault();
+
+  const confirmacao = form.dataset.confirm;
+  if (confirmacao && !confirm(confirmacao)) return;
+
+  const card = form.closest('.card-status');
+  if (!card) { form.submit(); return; }
+
+  const botao = form.querySelector('button[type="submit"]');
+  const textoOriginal = botao ? botao.textContent : null;
+  if (botao) { botao.disabled = true; botao.textContent = '...'; }
+
+  try {
+    const dados = new FormData(form);
+    dados.append('ajax', '1');
+    if (form.dataset.abrirObservacoes) dados.append('abrir_observacoes', '1');
+
+    const resposta = await fetch(form.action, { method: 'POST', body: dados });
+    if (!resposta.ok) throw new Error('Falha na requisicao');
+
+    const html = await resposta.text();
+    card.innerHTML = html;
+
+    card.style.transition = 'background-color 0.6s';
+    card.style.backgroundColor = 'rgba(63, 143, 95, 0.18)';
+    setTimeout(function () { card.style.backgroundColor = ''; }, 900);
+  } catch (erro) {
+    if (botao) { botao.disabled = false; botao.textContent = textoOriginal; }
+    alert('Nao foi possivel concluir a acao. Recarregue a pagina e tente novamente.');
+  }
+});
+</script>
 {% endblock %}
