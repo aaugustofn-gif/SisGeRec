@@ -46,7 +46,7 @@
 {% for l in linhas %}
 <div class="panel card-status" id="card-{{ l.id }}" data-linha-id="{{ l.id }}"
      {% if l.autorizacao.cancelada %}style="opacity:0.65;"{% endif %}>
-  {% with passos = linhas_tempo.get(l.id), no_ultimo_passo = ultimos_passos.get(l.id, False), abrir_observacoes = False %}
+  {% with passos = linhas_tempo.get(l.id), abrir_observacoes = False %}
     {% include "_status_card.html" %}
   {% endwith %}
 </div>

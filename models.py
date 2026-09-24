@@ -132,6 +132,8 @@ class LinhaStatus(Base):
     status_atual = Column(String(80), nullable=False, default=STATUS_INICIAL)
     ordem_manual = Column(Integer, default=0)  # usado para empurrar ao fim quando concluída/cancelada
     data_criacao = Column(DateTime, default=dt.datetime.utcnow)
+    concluido = Column(Boolean, default=False, nullable=False)
+    data_conclusao = Column(DateTime, nullable=True)
 
     autorizacao = relationship("Autorizacao", back_populates="linha_status")
     historico = relationship("StatusHistorico", back_populates="linha_status",

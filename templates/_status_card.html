@@ -55,12 +55,12 @@
   </div>
   <div class="status-linha">
     {% if usuario.nip == demanda.militar_responsavel_nip or usuario.perfil in ("ADMIN", "SUPERADMIN") %}
-      {% if not no_ultimo_passo %}
+      {% if not l.concluido %}
       <form class="inline form-ajax" method="post" action="/status/{{ l.id }}/avancar">
         <button class="btn btn-sm">Avançar status</button>
       </form>
       {% else %}
-      <span class="badge badge-ok">Processo concluído</span>
+      <span class="badge badge-ok">Processo concluído{% if l.data_conclusao %} em {{ l.data_conclusao.strftime("%d/%m/%Y") }}{% endif %}</span>
       {% endif %}
     {% endif %}
     {% if usuario.perfil in ("ADMIN", "SUPERADMIN") %}

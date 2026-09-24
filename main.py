@@ -32,6 +32,8 @@ def migrar_esquema():
                 "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS setor VARCHAR(100) NULL",
                 "ALTER TABLE status_config ADD COLUMN IF NOT EXISTS prazo INT NULL",
                 "ALTER TABLE demandas ADD COLUMN IF NOT EXISTS arquivada BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE linhas_status ADD COLUMN IF NOT EXISTS concluido BOOLEAN NOT NULL DEFAULT FALSE",
+                "ALTER TABLE linhas_status ADD COLUMN IF NOT EXISTS data_conclusao DATETIME NULL",
             ]
             for cmd in comandos:
                 db.execute(text(cmd))
@@ -53,6 +55,8 @@ def migrar_esquema():
                 "ALTER TABLE status_config ADD COLUMN setor VARCHAR(100) NULL",
                 "ALTER TABLE status_config ADD COLUMN prazo INTEGER NULL",
                 "ALTER TABLE demandas ADD COLUMN arquivada BOOLEAN NOT NULL DEFAULT 0",
+                "ALTER TABLE linhas_status ADD COLUMN concluido BOOLEAN NOT NULL DEFAULT 0",
+                "ALTER TABLE linhas_status ADD COLUMN data_conclusao DATETIME NULL",
             ]:
                 try:
                     db.execute(text(comando))

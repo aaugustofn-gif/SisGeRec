@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 import datetime as dt
 from database import get_db
 from auth import exigir_login, exigir_perfil
-from utils import proximo_status, eh_status_final, int_ou_none, construir_linha_tempo
+from utils import proximo_status, int_ou_none, construir_linha_tempo
 import models
 from webtemplates import templates
 
@@ -44,10 +44,6 @@ def painel_status(request: Request, status_filtro: str = None, tipo_processo: st
         l.id: construir_linha_tempo(db, l)
         for l in linhas if l.tipo_processo and not l.autorizacao.cancelada
     }
-    ultimos_passos = {
-        l.id: eh_status_final(db, l.tipo_processo, l.status_atual)
-        for l in linhas if l.tipo_processo and not l.autorizacao.cancelada
-    }
 
     origens = db.query(models.Origem).order_by(models.Origem.nome).all()
 
@@ -56,7 +52,7 @@ def painel_status(request: Request, status_filtro: str = None, tipo_processo: st
         "nd_choices": models.ND_CHOICES, "setor_choices": models.SETOR_CHOICES,
         "tipo_processo_choices": models.TIPO_PROCESSO_CHOICES,
         "tipo_processo_labels": models.TIPO_PROCESSO_LABELS,
-        "linhas_tempo": linhas_tempo, "ultimos_passos": ultimos_passos,
+        "linhas_tempo": linhas_tempo,
         "filtros": {"status": status_filtro, "tipo_processo": tipo_processo, "nd": nd,
                     "origem_id": origem_id, "setor": setor},
     })
@@ -71,14 +67,12 @@ def _responder(request, db, linha, usuario, ajax: str, abrir_observacoes: str = 
 
     db.refresh(linha)
     passos = None
-    no_ultimo = False
     if linha.tipo_processo and not linha.autorizacao.cancelada:
         passos = construir_linha_tempo(db, linha)
-        no_ultimo = eh_status_final(db, linha.tipo_processo, linha.status_atual)
 
     return templates.TemplateResponse("_status_card.html", {
         "request": request, "usuario": usuario, "l": linha,
-        "passos": passos, "no_ultimo_passo": no_ultimo,
+        "passos": passos,
         "abrir_observacoes": bool(abrir_observacoes),
         "tipo_processo_choices": models.TIPO_PROCESSO_CHOICES,
         "tipo_processo_labels": models.TIPO_PROCESSO_LABELS,
@@ -105,7 +99,7 @@ def avancar_status(request: Request, linha_id: int,
     linha = db.get(models.LinhaStatus, linha_id)
     if not linha:
         return RedirectResponse("/status", status_code=303)
-    if not linha.tipo_processo or linha.autorizacao.cancelada:
+    if not linha.tipo_processo or linha.autorizacao.cancelada or linha.concluido:
         return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
     demanda = linha.autorizacao.demanda
@@ -113,19 +107,25 @@ def avancar_status(request: Request, linha_id: int,
         return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
     novo = proximo_status(db, linha.tipo_processo, linha.status_atual)
+    agora = dt.datetime.utcnow()
+
     if novo is None:
-        # Já está no último passo configurado — nada a avançar.
+        # Já está no último passo configurado: este clique CONCLUI o processo de fato
+        # (antes disso, mesmo no último passo, ele permanece em amarelo/vermelho).
+        linha.concluido = True
+        linha.data_conclusao = agora
+        linha.ordem_manual = 1
+        db.add(models.StatusHistorico(
+            linha_status_id=linha.id, status=f"{linha.status_atual} — concluído",
+            data=agora, alterado_por_nip=usuario.nip,
+        ))
+        db.commit()
         return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 
-    agora = dt.datetime.utcnow()
     linha.status_atual = novo
     db.add(models.StatusHistorico(
         linha_status_id=linha.id, status=novo, data=agora, alterado_por_nip=usuario.nip,
     ))
-
-    if eh_status_final(db, linha.tipo_processo, novo):
-        linha.ordem_manual = 1
-
     db.commit()
     return _responder(request, db, linha, usuario, ajax, abrir_observacoes)
 

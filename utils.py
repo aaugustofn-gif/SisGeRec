@@ -67,19 +67,17 @@ def eh_status_final(db: Session, tipo_processo: str, status_atual: str) -> bool:
 
 
 def processo_em_andamento(db: Session, linha) -> bool:
-    """Verdadeiro para qualquer autorização ativa que ainda não chegou ao último status
-    configurado do seu tipo de processo (ou que ainda nem teve o tipo definido)."""
-    if linha.autorizacao.cancelada:
+    """Verdadeiro para qualquer autorização ativa que ainda não foi marcada como concluída."""
+    if linha.autorizacao.cancelada or linha.concluido:
         return False
-    if not linha.tipo_processo:
-        return True
-    return not eh_status_final(db, linha.tipo_processo, linha.status_atual)
+    return True
 
 
 def esta_atrasado(db: Session, linha) -> bool:
     """Verdadeiro se a linha está parada no passo atual há mais dias do que o prazo
-    configurado para esse passo (dentro do seu tipo de processo)."""
-    if linha.autorizacao.cancelada or not linha.tipo_processo:
+    configurado para esse passo (dentro do seu tipo de processo). Um processo já
+    concluído nunca é considerado atrasado."""
+    if linha.autorizacao.cancelada or linha.concluido or not linha.tipo_processo:
         return False
     config = (
         db.query(models.StatusConfig)
@@ -99,10 +97,24 @@ def esta_atrasado(db: Session, linha) -> bool:
     return dias_no_passo > config.prazo
 
 
+def _passou_do_passo(idx_atual: int, idx_passo, concluido: bool) -> bool:
+    """Um passo só é considerado 'passado por completo' quando a linha já avançou para um
+    passo posterior, ou quando esse era o último passo e o processo foi marcado como
+    concluído (clique extra de 'Avançar status' no último passo)."""
+    if idx_passo is None:
+        return False
+    if idx_atual > idx_passo:
+        return True
+    if idx_atual == idx_passo and concluido:
+        return True
+    return False
+
+
 def bucket_financeiro(db: Session, linha) -> str:
-    """Classifica em qual estágio financeiro a linha está: 'em_processo' (ainda não chegou
-    a 'Empenhado'), 'empenhado' (chegou a 'Empenhado' mas não a 'Liquidado') ou 'liquidado'
-    (chegou a 'Liquidado')."""
+    """Classifica em qual estágio financeiro a linha está: 'em_processo' (ainda não passou
+    por 'Empenhado'), 'empenhado' (já passou por 'Empenhado' mas não por 'Liquidado') ou
+    'liquidado' (já passou por 'Liquidado'). Estar PARADO em Empenhado/Liquidado (ainda em
+    amarelo, sem ter avançado ou concluído) não conta como tendo alcançado esse estágio."""
     if not linha or not linha.tipo_processo:
         return "em_processo"
 
@@ -111,9 +123,9 @@ def bucket_financeiro(db: Session, linha) -> str:
     idx_liquidado = lista.index("Liquidado") if "Liquidado" in lista else None
     idx_atual = lista.index(linha.status_atual) if linha.status_atual in lista else -1
 
-    if idx_liquidado is not None and idx_atual >= idx_liquidado:
+    if _passou_do_passo(idx_atual, idx_liquidado, linha.concluido):
         return "liquidado"
-    if idx_empenhado is not None and idx_atual >= idx_empenhado:
+    if _passou_do_passo(idx_atual, idx_empenhado, linha.concluido):
         return "empenhado"
     return "em_processo"
 
@@ -177,12 +189,20 @@ def construir_linha_tempo(db: Session, linha):
 
     resultado = []
     for i, p in enumerate(passos):
+        if linha.concluido:
+            concluido_passo = i <= idx_atual
+            atual_passo = False
+            atrasado_passo = False
+        else:
+            concluido_passo = i < idx_atual
+            atual_passo = i == idx_atual
+            atrasado_passo = atual_passo and atrasado
         resultado.append({
             "nome": p["nome"],
             "setor": p["setor"],
-            "atual": i == idx_atual,
-            "atrasado": i == idx_atual and atrasado,
-            "concluido": i < idx_atual,
+            "atual": atual_passo,
+            "atrasado": atrasado_passo,
+            "concluido": concluido_passo,
             "data": datas.get(p["nome"]),
         })
     return resultado
