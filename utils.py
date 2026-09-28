@@ -112,9 +112,13 @@ def _passou_do_passo(idx_atual: int, idx_passo, concluido: bool) -> bool:
 
 def bucket_financeiro(db: Session, linha) -> str:
     """Classifica em qual estágio financeiro a linha está: 'em_processo' (ainda não passou
-    por 'Empenhado'), 'empenhado' (já passou por 'Empenhado' mas não por 'Liquidado') ou
-    'liquidado' (já passou por 'Liquidado'). Estar PARADO em Empenhado/Liquidado (ainda em
-    amarelo, sem ter avançado ou concluído) não conta como tendo alcançado esse estágio."""
+    por 'Empenhado'), 'empenhado' (já passou por 'Empenhado' mas não por 'Liquidado'),
+    'liquidado' (já passou por 'Liquidado') ou 'encerrado' (concluído num tipo de processo
+    que não tem passo 'Liquidado' — ex.: transferência de crédito para outra OM, devolução
+    de saldo — nesses casos o valor já saiu de vez do 'Disponível' e não deve aparecer em
+    nenhuma das colunas do quadro, só sumir de 'Em processo'). Estar PARADO em
+    Empenhado/Liquidado (ainda em amarelo, sem ter avançado ou concluído) não conta como
+    tendo alcançado esse estágio."""
     if not linha or not linha.tipo_processo:
         return "em_processo"
 
@@ -122,6 +126,11 @@ def bucket_financeiro(db: Session, linha) -> str:
     idx_empenhado = lista.index("Empenhado") if "Empenhado" in lista else None
     idx_liquidado = lista.index("Liquidado") if "Liquidado" in lista else None
     idx_atual = lista.index(linha.status_atual) if linha.status_atual in lista else -1
+
+    if linha.concluido and idx_liquidado is None:
+        # Tipo de processo sem passo "Liquidado" configurado: ao concluir, o valor sai
+        # definitivamente da conta (não é liquidação de despesa, é transferência/baixa).
+        return "encerrado"
 
     if _passou_do_passo(idx_atual, idx_liquidado, linha.concluido):
         return "liquidado"
@@ -150,8 +159,9 @@ def resumo_financeiro_por_nd(db: Session):
             liquidado[nd] = liquidado.get(nd, Decimal("0")) + valor
         elif bucket == "empenhado":
             empenhado[nd] = empenhado.get(nd, Decimal("0")) + valor
-        else:
+        elif bucket == "em_processo":
             em_processo[nd] = em_processo.get(nd, Decimal("0")) + valor
+        # bucket == "encerrado": não soma em nenhuma coluna — já saiu de vez do quadro.
 
     return [
         {
