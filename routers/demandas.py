@@ -13,7 +13,7 @@ router = APIRouter()
 
 @router.get("/demandas")
 def listar_demandas(request: Request, nd: str = None, origem_id: str = None, setor: str = None,
-                     mostrar_arquivadas: str = None,
+                     mostrar_arquivadas: str = None, mostrar_autorizadas: str = None,
                      usuario=Depends(exigir_login), db: Session = Depends(get_db)):
     origem_id = int_ou_none(origem_id)
     q = db.query(models.Demanda)
@@ -26,19 +26,23 @@ def listar_demandas(request: Request, nd: str = None, origem_id: str = None, set
     if not mostrar_arquivadas:
         q = q.filter(models.Demanda.arquivada == False)
     demandas = q.order_by(models.Demanda.data_cadastro.desc()).all()
+    if not mostrar_autorizadas:
+        # Esconde as totalmente autorizadas por padrão (calculado na hora: se um processo for
+        # cancelado, a demanda volta a ter saldo pendente e reaparece sozinha).
+        demandas = [d for d in demandas if d.quantidade_pendente() > 0]
     origens = db.query(models.Origem).filter(models.Origem.ativo == True).order_by(models.Origem.nome).all()
 
     return templates.TemplateResponse("demandas.html", {
         "request": request, "usuario": usuario, "demandas": demandas, "origens": origens,
         "nd_choices": models.ND_CHOICES, "setor_choices": models.SETOR_CHOICES,
         "filtro_nd": nd, "filtro_origem": origem_id, "filtro_setor": setor,
-        "mostrar_arquivadas": mostrar_arquivadas,
+        "mostrar_arquivadas": mostrar_arquivadas, "mostrar_autorizadas": mostrar_autorizadas,
     })
 
 
 @router.get("/demandas/exportar")
 def exportar_demandas(nd: str = None, origem_id: str = None, setor: str = None,
-                       mostrar_arquivadas: str = None,
+                       mostrar_arquivadas: str = None, mostrar_autorizadas: str = None,
                        usuario=Depends(exigir_login), db: Session = Depends(get_db)):
     origem_id = int_ou_none(origem_id)
     q = db.query(models.Demanda)
@@ -51,6 +55,8 @@ def exportar_demandas(nd: str = None, origem_id: str = None, setor: str = None,
     if not mostrar_arquivadas:
         q = q.filter(models.Demanda.arquivada == False)
     demandas = q.order_by(models.Demanda.data_cadastro.desc()).all()
+    if not mostrar_autorizadas:
+        demandas = [d for d in demandas if d.quantidade_pendente() > 0]
 
     headers = ["Data", "Descrição", "ND", "Qtd. solicitada", "Vlr Unit. (R$)", "Vlr Total (R$)",
                "Origem desejada", "Qtd. autorizada", "Status geral", "Setor", "Responsável", "Observações"]

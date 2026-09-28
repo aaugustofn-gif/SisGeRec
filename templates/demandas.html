@@ -7,7 +7,7 @@
   <div style="display:flex; justify-content:space-between; align-items:center;">
     <h2 style="margin:0;">Demandas cadastradas</h2>
     <div>
-      <a class="btn" href="/demandas/exportar?nd={{ filtro_nd or '' }}&origem_id={{ filtro_origem or '' }}&setor={{ filtro_setor or '' }}&mostrar_arquivadas={{ mostrar_arquivadas or '' }}">⬇ Exportar planilha</a>
+      <a class="btn" href="/demandas/exportar?nd={{ filtro_nd or '' }}&origem_id={{ filtro_origem or '' }}&setor={{ filtro_setor or '' }}&mostrar_arquivadas={{ mostrar_arquivadas or '' }}&mostrar_autorizadas={{ mostrar_autorizadas or '' }}">⬇ Exportar planilha</a>
       <a class="btn btn-gold" href="/demandas/nova">+ Nova Demanda</a>
     </div>
   </div>
@@ -38,6 +38,12 @@
       <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal;">
         <input type="checkbox" name="mostrar_arquivadas" value="1" style="width:auto;" {% if mostrar_arquivadas %}checked{% endif %}>
         Mostrar arquivadas
+      </label>
+    </div>
+    <div>
+      <label style="display:inline-flex; align-items:center; gap:6px; font-weight:normal;">
+        <input type="checkbox" name="mostrar_autorizadas" value="1" style="width:auto;" {% if mostrar_autorizadas %}checked{% endif %}>
+        Mostrar totalmente autorizadas
       </label>
     </div>
     <div><button class="btn" type="submit">Filtrar</button></div>
